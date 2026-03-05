@@ -1,0 +1,502 @@
+#include <sourcemod>
+#include <clientprefs>
+#include <json>
+#include <nativevotes>
+
+#define BASE_STR_LEN 256
+#define MAX_MAP_LIST_SIZE 100
+
+#define ID_PROPERTY_NAME "id"
+#define TITLE_PROPERTY_NAME "title"
+#define MAPGROUP_PROPERTY_NAME "mapgroup"
+#define MAPLIST_PROPERTY_NAME "maplist"
+#define GAMETYPE_PROPERTY_NAME "game_type"
+#define GAMEMODE_PROPERTY_NAME "game_mode"
+#define SKIRMISH_PROPERTY_NAME "skirmish_id"
+#define GAME_MODE_FLAGS_PROPERTY_NAME "game_mode_flags"
+
+public Plugin myinfo = {
+    name = "CSGO Game Mode Vote",
+    author = "Eric Zhang",
+    description = "Vote for CSGO game mode.",
+    version = "1.0",
+    url = "https://ericaftereric.top"
+};
+
+char currentModeId[BASE_STR_LEN];
+
+JSON_Array gameModes;
+
+Cookie cookieNoHintWhenEnter;
+
+ConVar cvarGameMode;
+ConVar cvarGameType;
+ConVar cvarGameModeFlags;
+ConVar cvarSkirmishId;
+ConVar cvarWarGameModeNumModes;
+ConVar cvarWarGameModes;
+ConVar cvarConfigPath;
+ConVar cvarStartupMode;
+ConVar cvarShowHintByDefault;
+ConVar cvarVoteCooldown;
+ConVar cvarVoteTimer;
+ConVar cvarVotePercent;
+ConVar cvarVoteDuration;
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
+    char game[PLATFORM_MAX_PATH];
+    GetGameFolderName(game, sizeof(game));
+    if (!StrEqual(game, "csgo")) {
+        strcopy(error, err_max, "This plugin only works on Counter-Strike: Global Offensive");
+        return APLRes_SilentFailure;
+    }
+    return APLRes_Success;
+}
+
+public void OnPluginStart() {
+    LoadTranslations("common.phrases");
+    LoadTranslations("csgo-gamemode-vote.phrases");
+
+    cvarGameMode = FindConVar("game_mode");
+    cvarGameType = FindConVar("game_type");
+    cvarGameModeFlags = FindConVar("sv_game_mode_flags");
+    cvarSkirmishId = FindConVar("sv_skirmish_id");
+    cvarWarGameModeNumModes = FindConVar("mp_endmatch_votenextmap_wargames_nummodes");
+    cvarWarGameModes = FindConVar("mp_endmatch_votenextmap_wargames_modes");
+    
+    cvarWarGameModeNumModes.IntValue = 0;
+    cvarWarGameModes.SetString("0");
+
+    cvarWarGameModeNumModes.AddChangeHook(OnVoteModeCvarChanged);
+    cvarWarGameModes.AddChangeHook(OnVoteModeCvarChanged);
+
+    cvarConfigPath = CreateConVar("sm_game_mode_vote_config_path", "configs/gamemode-vote.json", "Path to the config file relative to the SourceMod root directory");
+    cvarStartupMode = CreateConVar("sm_game_mode_startup_mode", "", "Game mode server should start at.");
+    cvarShowHintByDefault = CreateConVar("sm_game_mode_vote_show_hint_default", "1", "Tell clients they can vote for game mode by default.");
+    cvarVotePercent = CreateConVar("sm_game_mode_vote_percent", "0.6", "How many players are required to pass the game mode vote?", _, true, 0.0, true, 1.0);
+    cvarVoteDuration = CreateConVar("sm_game_mode_vote_duration", "30", "How long should the game mode vote last?", _, true, 0.0);
+    cvarVoteCooldown = CreateConVar("sm_game_mode_vote_cooldown", "300", "Minimum time before another game mode vote can occur (in seconds).", _, true, 0.0);
+    cvarVoteTimer = CreateConVar("sm_game_mode_vote_timer", "5.0", "How long should the plugin wait before the game mode is applied when a vote is successful?", _, true, 0.0);
+
+    cookieNoHintWhenEnter = new Cookie("Show game mode vote hint", "Toggle the game mode vote hint when you enter the server.", CookieAccess_Public);
+    cookieNoHintWhenEnter.SetPrefabMenu(CookieMenu_OnOff_Int, "Show game mode vote hint", OnHintCookieMenu);
+
+    RegConsoleCmd("sm_votemode", Cmd_VoteMode, "Vote for the next game mode.");
+    RegAdminCmd("sm_reload_gamemode_vote_config", Cmd_ReloadModeConfig, ADMFLAG_CONFIG ,"Reload config for game mode vote.");
+
+    AutoExecConfig();
+}
+
+public void OnConfigsExecuted() {
+    LoadGameModeVoteConfig();
+    char startupMode[BASE_STR_LEN];
+    cvarStartupMode.GetString(startupMode, sizeof(startupMode));
+    JSON_Object mode = GetGameModeFromId(startupMode);
+    if (mode == null) {
+        mode = gameModes.GetObject(0);
+        char modeId[BASE_STR_LEN];
+        mode.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
+        LogMessage("Warning: no startup game mode specified or startup game mode doesn't exist. Starting the first game mode in config (%s)...", modeId);
+    }
+    ApplyGameModeFirstMap(mode); 
+}
+
+public void OnAllPluginsLoaded() {
+    if (FindPluginByFile("mapchooser.smx") != null) {
+        LogMessage("Unloading mapchooser to prevent conflicts with the mapgroup system...");
+        ServerCommand("sm plugins unload mapchooser");
+    }
+    if (FindPluginByFile("rockthevote.smx") != null) {
+        LogMessage("Unloading rockthevote to prevent conflicts with the mapgroup system...");
+        ServerCommand("sm plugins unload rockthevote");
+    }
+    if (FindPluginByFile("nominations.smx") != null) {
+        LogMessage("Unloading nominations to prevent conflicts with the mapgroup system...");
+        ServerCommand("sm plugins unload nominations");
+    }
+    if (FindPluginByFile("randomcycle.smx") != null) {
+        LogMessage("Unloading randomcycle to prevent conflicts with the mapgroup system...");
+        ServerCommand("sm plugins unload randomcycle");
+    }
+    if (FindPluginByFile("nextmap.smx") != null) {
+        LogMessage("Unloading nextmap to prevent conflicts with the mapgroup system...");
+        ServerCommand("sm plugins unload nextmap");
+    }
+}
+
+public void OnVoteModeCvarChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+    char name[BASE_STR_LEN];
+    convar.GetName(name, sizeof(name));
+    LogMessage("Resetting %s to 0 to avoid conflicts with the game mode vote plugin...", name);
+    convar.SetString("0");
+}
+
+public void OnClientCookiesCached(int client) {
+    if (IsFakeClient(client) || IsClientSourceTV(client) || IsClientReplay(client)) {
+        return;
+    }
+    if (cookieNoHintWhenEnter.GetInt(client, cvarShowHintByDefault.BoolValue ? 1 : 0)) {
+        PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_HINT");
+    }
+}
+
+public void OnHintCookieMenu(int client, CookieMenuAction action, any info, char[] buffer, int maxlen) {
+    if (action == CookieMenuAction_DisplayOption) {
+        Format(buffer, maxlen, "%t", "CSGO_GAMEMODE_VOTE_HINT_TOGGLE", client);
+    }
+}
+
+void LoadGameModeVoteConfig() {
+    if (gameModes != null) {
+        json_cleanup_and_delete(gameModes);
+    }
+    char basePath[PLATFORM_MAX_PATH], path[PLATFORM_MAX_PATH];
+    cvarConfigPath.GetString(basePath, sizeof(basePath));
+    BuildPath(Path_SM, path, sizeof(path), basePath);
+    if (!FileExists(path)) {
+        SetFailState("Config file for game mode vote doesn't exist: %s", path);
+    }
+    JSON_Array config = view_as<JSON_Array>(json_read_from_file(path));
+    if (config == null) {
+        char error[BASE_STR_LEN];
+        if (!json_get_last_error(error, sizeof(error))) {
+            SetFailState("Error occurred when parsing config file for game mode vote but I don't know what went wrong!!!");
+        }
+        SetFailState("Error occurred while parsing game mode vote config: %s", error);
+    }
+
+    if (config.Length == 0) {
+        SetFailState("Error occurred while parsing game mode vote config: config is empty");
+    }
+    for (int i = 0; i < config.Length; i++) {
+        if (config.GetType(i) != JSON_Type_Object) {
+            SetFailState("Error occurred while parsing game mode vote config: item at index %d is not of type object", i);
+        }
+        char error[BASE_STR_LEN];
+        if (!ValidateGameModeEntry(config.GetObject(i), config, error, sizeof(error))) {
+            SetFailState("Error occurred while parsing game mode vote config: item at index %d has this error: %s", i, error);
+        }
+    }
+
+    gameModes = view_as<JSON_Array>(json_copy_deep(config));
+    json_cleanup_and_delete(config);
+}
+
+bool ValidateGameModeEntry(JSON_Object obj, JSON_Array allModes, char[] error, int errorLen) {
+    if (obj == null) {
+        strcopy(error, errorLen, "object is null");
+        return false;
+    }
+    if (allModes == null) {
+        strcopy(error, errorLen, "all mode array is null");
+        return false;
+    }
+
+    if (!obj.HasKey(ID_PROPERTY_NAME) || obj.GetType(ID_PROPERTY_NAME) != JSON_Type_String) {
+        strcopy(error, errorLen, "id is invalid or missing");
+        return false;
+    }
+    if (!obj.HasKey(TITLE_PROPERTY_NAME) || obj.GetType(TITLE_PROPERTY_NAME) != JSON_Type_String) {
+        strcopy(error, errorLen, "title is inavlid or missing");
+        return false;
+    }
+    if (!obj.HasKey(MAPGROUP_PROPERTY_NAME) || obj.GetType(MAPGROUP_PROPERTY_NAME) != JSON_Type_String) {
+        strcopy(error, errorLen, "mapgroup is invalid or missing");
+        return false;
+    }
+    if (!obj.HasKey(MAPLIST_PROPERTY_NAME) || obj.GetType(MAPLIST_PROPERTY_NAME) != JSON_Type_Object) {
+        strcopy(error, errorLen, "maplist is invalid or missing");
+        return false;
+    }
+    if (!obj.HasKey(GAMETYPE_PROPERTY_NAME) || obj.GetType(GAMETYPE_PROPERTY_NAME) != JSON_Type_Int) {
+        strcopy(error, errorLen, "game_type is invalid or missing");
+        return false;
+    }
+    if (!obj.HasKey(GAMEMODE_PROPERTY_NAME) || obj.GetType(GAMEMODE_PROPERTY_NAME) != JSON_Type_Int) {
+        strcopy(error, errorLen, "game_mode is invalid or missing");
+        return false;
+    }
+
+    if (obj.HasKey(SKIRMISH_PROPERTY_NAME) && obj.GetType(SKIRMISH_PROPERTY_NAME) != JSON_Type_Int) {
+        strcopy(error, errorLen, "skirmish_id is invalid");
+        return false;
+    }
+    if (obj.HasKey(GAME_MODE_FLAGS_PROPERTY_NAME) && obj.GetType(GAME_MODE_FLAGS_PROPERTY_NAME) != JSON_Type_Int) {
+        strcopy(error, errorLen, "game_mode_flags is invalid");
+        return false;
+    }
+
+    char objId[BASE_STR_LEN], objTitle[BASE_STR_LEN];
+    obj.GetString(ID_PROPERTY_NAME, objId, sizeof(objId));
+    obj.GetString(TITLE_PROPERTY_NAME, objTitle, sizeof(objTitle));
+    if (StrContains(objId, ";") != -1) {
+        strcopy(error, errorLen, "id cannot contain semicolons");
+        return false;
+    }
+    if (StrContains(objTitle, ";") != -1) {
+        strcopy(error, errorLen, "title cannot contain semicolons");
+        return false;
+    }
+    JSON_Array maplist = view_as<JSON_Array>(obj.GetObject(MAPLIST_PROPERTY_NAME))
+    if (maplist == null || maplist.Length == 0) {
+        strcopy(error, errorLen, "maplist is empty");
+        return false;
+    }
+
+    for (int i = 0; i < allModes.Length; i++) {
+        JSON_Object current = allModes.GetObject(i);
+        if (current == null) {
+            strcopy(error, errorLen, "invalid type while iterating through all game modes. if the laws of physics don't apply, god help you.");
+            return false;
+        }
+        char currentId[BASE_STR_LEN];
+        if (!current.GetString(ID_PROPERTY_NAME, currentId, sizeof(currentId))) {
+            strcopy(error, errorLen, "invalid id encountered while iterating through all game modes, please help")
+            return false;
+        }
+        if (StrEqual(objId, currentId)) {
+            Format(error, errorLen, "duplicate id: %s", objId);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+JSON_Object GetGameModeFromId(const char[] id) {
+    if (!strlen(id)) {
+        return null;
+    }
+    for (int i = 0; i < gameModes.Length; i++) {
+        JSON_Object current = gameModes.GetObject(i);
+        char currentId[BASE_STR_LEN];
+        current.GetString(ID_PROPERTY_NAME, currentId, sizeof(currentId));
+        if (StrEqual(currentId, id)) {
+            return current;
+        }
+    }
+    return null;
+}
+
+void ApplyGameMode(JSON_Object obj, const char[] map) {
+    if (obj == null) {
+        SetFailState("null passed to ApplyGameMode");
+        return;
+    }
+    char mapgroup[BASE_STR_LEN], id[BASE_STR_LEN];
+    int gameType = obj.GetInt(GAMETYPE_PROPERTY_NAME);
+    int gameMode = obj.GetInt(GAMEMODE_PROPERTY_NAME);
+    obj.GetString(ID_PROPERTY_NAME, id, sizeof(id));
+    obj.GetString(MAPGROUP_PROPERTY_NAME, mapgroup, sizeof(mapgroup));
+    int skirmishId = 0;
+    int gameModeFlags = 0;
+    if (obj.HasKey(SKIRMISH_PROPERTY_NAME)) {
+        skirmishId = obj.GetInt(SKIRMISH_PROPERTY_NAME);
+    }
+    if (obj.HasKey(GAME_MODE_FLAGS_PROPERTY_NAME)) {
+        gameModeFlags = obj.GetInt(GAME_MODE_FLAGS_PROPERTY_NAME);
+    }
+    cvarGameType.IntValue = gameType;
+    cvarGameMode.IntValue = gameMode;
+    cvarSkirmishId.IntValue = skirmishId;
+    cvarGameModeFlags.IntValue = gameModeFlags;
+    strcopy(currentModeId, sizeof(currentModeId), id);
+    ServerCommand("mapgroup %s", mapgroup);
+    ServerCommand("changelevel %s", map);
+}
+
+void ApplyGameModeFirstMap(JSON_Object obj) {
+    if (obj == null) {
+        SetFailState("null passed to ApplyGameModeFirstMap");
+        return;
+    }
+    JSON_Array maplist = view_as<JSON_Array>(obj.GetObject(MAPLIST_PROPERTY_NAME));
+    char map[BASE_STR_LEN];
+    maplist.GetString(0, map, sizeof(map));
+    ApplyGameMode(obj, map);
+}
+
+void StartGameModeVote(JSON_Object obj, const char[] map) {
+    NativeVote vote = new NativeVote(Vote_GameModeVoteHandler, NativeVotesType_Custom_Mult,
+        NATIVEVOTES_ACTIONS_DEFAULT | MenuAction_Display);
+    char modeId[BASE_STR_LEN], modeTitle[BASE_STR_LEN];
+    obj.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
+    obj.GetString(TITLE_PROPERTY_NAME, modeTitle, sizeof(modeTitle));
+    vote.SetTitle("%s;%s;%s", modeId, modeTitle, map);
+    vote.AddItem("yes", "Yes");
+    vote.AddItem("no", "No");
+    vote.DisplayVoteToAll(cvarVoteDuration.IntValue);
+}
+
+void ShowModeSelectMenu(int client) {
+    char menuTitle[BASE_STR_LEN];
+    Format(menuTitle, sizeof(menuTitle), "%T", "CSGO_GAMEMODE_MENU_TITLE", client);
+    Menu gameModeSelectMenu = new Menu(Menu_ModeSelectMenuHandler);
+    gameModeSelectMenu.SetTitle(menuTitle);
+    for (int i = 0; i < gameModes.Length; i++) {
+        char id[BASE_STR_LEN], titlePre[BASE_STR_LEN], title[BASE_STR_LEN];
+        int style = ITEMDRAW_DEFAULT;
+        JSON_Object obj = gameModes.GetObject(i);
+        obj.GetString(ID_PROPERTY_NAME, id, sizeof(id));
+        obj.GetString(TITLE_PROPERTY_NAME, titlePre, sizeof(titlePre));
+        if (StrEqual(id, currentModeId)) {
+            Format(title, sizeof(title), "%T", "CSGO_GAMEMODE_MENU_SELECTED", client, titlePre);
+            style = ITEMDRAW_DISABLED;
+        } else {
+            strcopy(title, sizeof(title), titlePre);
+        }
+        gameModeSelectMenu.AddItem(id, title, style);
+    }
+    gameModeSelectMenu.Display(client, MENU_TIME_FOREVER);
+}
+
+void ShowMapSelectMenu(int client, JSON_Object mode) {
+    char currentMap[BASE_STR_LEN], menuTitle[BASE_STR_LEN], modeId[BASE_STR_LEN];
+    JSON_Array maplist = view_as<JSON_Array>(mode.GetObject(MAPLIST_PROPERTY_NAME));
+    mode.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
+    Menu mapSelectMenu = new Menu(Menu_MapSelectMenuHandler, MENU_ACTIONS_DEFAULT | MenuAction_Display);
+    Format(menuTitle, sizeof(menuTitle), "%T", "CSGO_GAMEMODE_MAP_MENU_TITLE", client);
+    mapSelectMenu.SetTitle(menuTitle);
+    GetCurrentMap(currentMap, sizeof(currentMap));
+    for (int i = 0; i < maplist.Length; i++) {
+        char map[BASE_STR_LEN], itemId[BASE_STR_LEN];
+        maplist.GetString(i, map, sizeof(map));
+        int style = ITEMDRAW_DEFAULT;
+        if (StrEqual(map, currentMap)) {
+            style = ITEMDRAW_DISABLED;
+        }
+        Format(itemId, sizeof(itemId), "%s;%s", modeId, map);
+        mapSelectMenu.AddItem(map, map, style);
+    }
+    mapSelectMenu.Display(client, MENU_TIME_FOREVER);
+}
+
+public Action Cmd_VoteMode(int client, int args) {
+    ShowModeSelectMenu(client);
+    return Plugin_Handled;
+}
+
+public void Menu_ModeSelectMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
+    switch (action) {
+        case MenuAction_Select: {
+            char selectedId[BASE_STR_LEN];
+            menu.GetItem(param2, selectedId, sizeof(selectedId));
+            JSON_Object selectedMode = GetGameModeFromId(selectedId);
+            if (selectedMode == null) {
+                SetFailState("Selected game mode is null, something has gone horribly wrong.");
+            }
+            ShowMapSelectMenu(param1, selectedMode);
+        }
+        case MenuAction_End: {
+            delete menu;
+        }
+    }
+}
+
+
+public int Menu_MapSelectMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
+    switch (action) {
+        case MenuAction_Select: {
+            char id[BASE_STR_LEN], map[BASE_STR_LEN], item[BASE_STR_LEN];
+            menu.GetItem(param2, item, sizeof(item));
+            SplitStringAtSemicolon(item, id, sizeof(id), map, sizeof(map));
+            JSON_Object selectedMode = GetGameModeFromId(id);
+            if (selectedMode == null) {
+                SetFailState("Selected game mode is null, something has gone horribly wrong.");
+            }
+            StartGameModeVote(selectedMode, map);
+        }
+        case MenuAction_End: {
+            delete menu;
+        }
+    }
+    return 0;
+}
+
+public int Vote_GameModeVoteHandler(NativeVote vote, MenuAction action, int param1, int param2) {
+    // title is id;title;map
+    switch (action) {
+        case MenuAction_Display: {
+            char voteTitle[BASE_STR_LEN], modeId[BASE_STR_LEN], modeTitle[BASE_STR_LEN],
+                map[BASE_STR_LEN], targetStr[BASE_STR_LEN];
+            vote.GetTitle(voteTitle, sizeof(voteTitle));
+            SplitThreeStringsAtSemicolon(voteTitle, modeId, sizeof(modeId), modeTitle, sizeof(modeTitle), map, sizeof(map));
+            Format(targetStr, sizeof(targetStr), "%T", "CSGO_GAMEMODE_VOTE_TITLE", param1, modeTitle, map);
+            return view_as<int>(NativeVotes_RedrawVoteTitle(targetStr));
+        }
+        case MenuAction_DisplayItem: {
+            char sourceInfoStr[64], sourceDispStr[64], targetStr[64];
+            vote.GetItem(param2, sourceInfoStr, sizeof(sourceInfoStr), sourceDispStr, sizeof(sourceDispStr));
+            if (StrEqual(sourceInfoStr, "yes") || StrEqual(sourceInfoStr, "no")) {
+                Format(targetStr, sizeof(targetStr), "%T", sourceDispStr, param1);
+                return view_as<int>(NativeVotes_RedrawVoteItem(targetStr));
+            }
+        }
+        case MenuAction_VoteEnd: {
+            char item[64];
+            float percent, limit;
+            int votes, totalVotes;
+
+            GetMenuVoteInfo(param2, votes, totalVotes);
+            vote.GetItem(param1, item, sizeof(item));
+
+            percent = float(votes) / float(totalVotes);
+            limit = cvarVotePercent.FloatValue;
+
+            if (FloatCompare(percent, limit) >= 0 && StrEqual(item, "yes")) {
+                char voteTitle[BASE_STR_LEN], modeId[BASE_STR_LEN], modeTitle[BASE_STR_LEN], map[BASE_STR_LEN];
+                vote.GetTitle(voteTitle, sizeof(voteTitle));
+                SplitThreeStringsAtSemicolon(voteTitle, modeId, sizeof(modeId), modeTitle, sizeof(modeTitle), map, sizeof(map));
+                vote.DisplayPass("%t", "CSGO_GAMEMODE_VOTE_SUCCESS", modeTitle, map);
+                ScheduleGameModeApply(modeId, map);
+            } else {
+                vote.DisplayFail(NativeVotesFail_Loses);
+            }
+        }
+        case MenuAction_End: {
+            vote.Close();
+        }
+    }
+    return 0;
+}
+
+public Action Cmd_ReloadModeConfig(int client, int args) {
+    LoadGameModeVoteConfig();
+    return Plugin_Handled;
+}
+
+void ScheduleGameModeApply(const char[] id, const char[] map) {
+    DataPack pack;
+    CreateDataTimer(cvarVoteTimer.FloatValue, Timer_ScheduleTimerHandler, pack);
+    pack.WriteString(id);
+    pack.WriteString(map);
+}
+
+public Action Timer_ScheduleTimerHandler(Handle timer, DataPack pack) {
+    char id[BASE_STR_LEN], map[BASE_STR_LEN];
+    pack.Reset();
+    pack.ReadString(id, sizeof(id));
+    pack.ReadString(map, sizeof(map));
+    JSON_Object mode = GetGameModeFromId(id);
+    if (mode == null) {
+        SetFailState("Selected game mode is null, something has gone horribly wrong");
+    }
+    ApplyGameMode(mode, map);
+    return Plugin_Continue;
+}
+
+void SplitStringAtSemicolon(const char[] source, char[] first, int firstLen, char[] second, int secondLen) {
+    int semiPos = SplitString(source, ";", first, firstLen);
+    if (semiPos != -1) {
+        strcopy(second, secondLen, source[semiPos]);
+    }
+}
+
+void SplitThreeStringsAtSemicolon(const char[] source, char[] first, int firstLen, char[] second, int secondLen,
+    char[] third, int thirdLen) {
+    char strings[3][BASE_STR_LEN];
+    ExplodeString(source, ";", strings, 3, BASE_STR_LEN);
+    strcopy(first, firstLen, strings[0]);
+    strcopy(second, secondLen, strings[1]);
+    strcopy(third, thirdLen, strings[2]);
+}

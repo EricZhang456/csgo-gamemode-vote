@@ -1,0 +1,119 @@
+[
+    {
+        "id": "CasualSigma",
+        "title": "Casual (Defusal Group Sigma)",
+        "game_type": 0,
+        "game_mode": 0,
+        "mapgroup": "mg_casualsigma",
+        "maplist": [
+            "de_canals",
+            "de_vertigo",
+            "de_cbble",
+            "de_ancient",
+            "de_cache",
+            "de_tuscan"
+        ]
+    },
+    {
+        "id": "CasualDelta",
+        "title": "Casual (Defusal Group Delta)",
+        "game_type": 0,
+        "game_mode": 0,
+        "mapgroup": "mg_casualdelta",
+        "maplist": [
+            "de_anubis",
+            "de_mirage",
+            "de_inferno",
+            "de_overpass",
+            "de_nuke",
+            "de_train"
+        ]
+    },
+    {
+        "id": "CasualDust2",
+        "title": "Casual (Dust 2)",
+        "game_type": 0,
+        "game_mode": 0,
+        "mapgroup": "mg_dust247",
+        "maplist": [
+            "de_dust2"
+        ]
+    },
+    {
+        "id": "CasualHostage",
+        "title": "Casual (Hostage Group)",
+        "game_type": 0,
+        "game_mode": 0,
+        "mapgroup": "mg_hostage",
+        "maplist": [
+            "cs_agency",
+            "cs_militia",
+            "cs_office",
+            "cs_italy",
+            "cs_assault"
+        ]
+    },
+    {
+        "id": "Competitive",
+        "title": "Competitive (Active Duty)",
+        "game_type": 0,
+        "game_mode": 1,
+        "mapgroup": "mg_active",
+        "maplist": [
+            "de_inferno",
+            "de_train",
+            "de_mirage",
+            "de_nuke",
+            "de_dust2",
+            "de_overpass",
+            "de_vertigo"
+        ]
+    },
+    {
+        "id": "FFASigma",
+        "title": "Free-for-all (Defusal Group Sigma)",
+        "game_type": 1,
+        "game_mode": 2,
+        "game_mode_flags": 32,
+        "mapgroup": "mg_casualsigma",
+        "maplist": [
+            "de_canals",
+            "de_vertigo",
+            "de_cbble",
+            "de_ancient",
+            "de_cache",
+            "de_tuscan"
+        ]
+    },
+    {
+        "id": "ArmsRace",
+        "title": "Arms Race",
+        "game_type": 1,
+        "game_mode": 0,
+        "mapgroup": "mg_armsrace",
+        "maplist": [
+            "de_lake",
+            "de_stmarc",
+            "de_safehouse",
+            "ar_shoots",
+            "ar_baggage",
+            "ar_lunacy",
+            "ar_monastery"
+        ]
+    },
+    {
+        "id": "FlyingScoutsMan",
+        "title": "Flying Scoutsman",
+        "game_type": 0,
+        "game_mode": 0,
+        "skirmish_id": 3,
+        "mapgroup": "mg_skirmish_flyingscoutsman",
+        "maplist": [
+            "de_lake",
+            "de_safehouse",
+            "ar_dizzy",
+            "ar_lunacy",
+            "ar_shoots"
+        ]
+    }
+]
