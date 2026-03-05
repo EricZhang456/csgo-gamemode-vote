@@ -70,6 +70,23 @@
         ]
     },
     {
+        "id": "CompetitiveShort",
+        "title": "Competitive (Active Duty) (Short Match)",
+        "game_type": 0,
+        "game_mode": 1,
+        "game_mode_flags": 32,
+        "mapgroup": "mg_active",
+        "maplist": [
+            "de_inferno",
+            "de_train",
+            "de_mirage",
+            "de_nuke",
+            "de_dust2",
+            "de_overpass",
+            "de_vertigo"
+        ]
+    },
+    {
         "id": "FFASigma",
         "title": "Free-for-all (Defusal Group Sigma)",
         "game_type": 1,
@@ -86,6 +103,106 @@
         ]
     },
     {
+        "id": "FFADelta",
+        "title": "Free-for-all (Defusal Group Delta)",
+        "game_type": 1,
+        "game_mode": 2,
+        "game_mode_flags": 32,
+        "mapgroup": "mg_casualdelta",
+        "maplist": [
+            "de_anubis",
+            "de_mirage",
+            "de_inferno",
+            "de_overpass",
+            "de_nuke",
+            "de_train"
+        ]
+    },
+    {
+        "id": "FFADust2",
+        "title": "Free-for-all (Dust 2)",
+        "game_type": 1,
+        "game_mode": 2,
+        "game_mode_flags": 32,
+        "mapgroup": "mg_dust247",
+        "maplist": [
+            "de_dust2"
+        ]
+    },
+    {
+        "id": "FFAHostage",
+        "title": "Free-for-all (Hostage Group)",
+        "game_type": 1,
+        "game_mode": 2,
+        "game_mode_flags": 32,
+        "mapgroup": "mg_hostage",
+        "maplist": [
+            "cs_agency",
+            "cs_militia",
+            "cs_office",
+            "cs_italy",
+            "cs_assault"
+        ]
+    },
+    {
+        "id": "TDMSigma",
+        "title": "Team Deathmatch (Defusal Group Sigma)",
+        "game_type": 1,
+        "game_mode": 2,
+        "game_mode_flags": 4,
+        "mapgroup": "mg_casualsigma",
+        "maplist": [
+            "de_canals",
+            "de_vertigo",
+            "de_cbble",
+            "de_ancient",
+            "de_cache",
+            "de_tuscan"
+        ]
+    },
+    {
+        "id": "TDMDelta",
+        "title": "Team Deathmatch (Defusal Group Delta)",
+        "game_type": 1,
+        "game_mode": 2,
+        "game_mode_flags": 4,
+        "mapgroup": "mg_casualdelta",
+        "maplist": [
+            "de_anubis",
+            "de_mirage",
+            "de_inferno",
+            "de_overpass",
+            "de_nuke",
+            "de_train"
+        ]
+    },
+    {
+        "id": "TDMDust2",
+        "title": "Team Deathmatch (Dust 2)",
+        "game_type": 1,
+        "game_mode": 2,
+        "game_mode_flags": 4,
+        "mapgroup": "mg_dust247",
+        "maplist": [
+            "de_dust2"
+        ]
+    },
+    {
+        "id": "TDMHostage",
+        "title": "Team Deathmatch (Hostage Group)",
+        "game_type": 1,
+        "game_mode": 2,
+        "game_mode_flags": 4,
+        "mapgroup": "mg_hostage",
+        "maplist": [
+            "cs_agency",
+            "cs_militia",
+            "cs_office",
+            "cs_italy",
+            "cs_assault"
+        ]
+    },
+    {
         "id": "ArmsRace",
         "title": "Arms Race",
         "game_type": 1,
@@ -99,6 +216,39 @@
             "ar_baggage",
             "ar_lunacy",
             "ar_monastery"
+        ]
+    },
+    {
+        "id": "Demolition",
+        "title": "Demolition",
+        "game_type": 1,
+        "game_mode": 1,
+        "mapgroup": "mg_demolition",
+        "maplist": [
+            "de_lake",
+            "de_stmarc",
+            "de_sugarcane",
+            "de_bank",
+            "de_safehouse",
+            "de_shortdust"
+        ]
+    },
+    {
+        "id": "Retakes",
+        "title": "Retakes",
+        "game_mode": 0,
+        "game_type": 0,
+        "skirmish_id": 12,
+        "mapgroup": "mg_skirmish_retakes",
+        "maplist": [
+            "de_inferno",
+            "de_mirage",
+            "de_dust2",
+            "de_nuke",
+            "de_overpass",
+            "de_train",
+            "de_vertigo",
+            "de_ancient"
         ]
     },
     {

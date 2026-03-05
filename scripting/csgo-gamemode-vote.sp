@@ -66,7 +66,7 @@ public void OnPluginStart() {
     cvarSkirmishId = FindConVar("sv_skirmish_id");
     cvarWarGameModeNumModes = FindConVar("mp_endmatch_votenextmap_wargames_nummodes");
     cvarWarGameModes = FindConVar("mp_endmatch_votenextmap_wargames_modes");
-    cvarVoteAllowSpec = FindConVar("sv_vote_allow_spectator");
+    cvarVoteAllowSpec = FindConVar("sv_vote_allow_spectators");
     
     cvarWarGameModeNumModes.IntValue = 0;
     cvarWarGameModes.SetString("0");
@@ -86,6 +86,8 @@ public void OnPluginStart() {
 
     RegConsoleCmd("sm_votemode", Cmd_VoteMode, "Vote for the next game mode.");
     RegAdminCmd("sm_reload_gamemode_vote_config", Cmd_ReloadModeConfig, ADMFLAG_CONFIG, "Reload config for game mode vote.");
+
+    HookEvent("player_team", Event_PlayerTeam);
 
     AutoExecConfig();
 }
@@ -140,7 +142,8 @@ public void OnVoteModeCvarChanged(ConVar convar, const char[] oldValue, const ch
     convar.SetString("0");
 }
 
-public void OnClientCookiesCached(int client) {
+public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast) {
+    int client = GetClientOfUserId(event.GetInt("userid"));
     if (IsFakeClient(client) || IsClientSourceTV(client) || IsClientReplay(client)) {
         return;
     }
