@@ -5,6 +5,8 @@
 #include <json>
 #include <nativevotes>
 
+#pragma dynamic 1310720
+
 #define BASE_STR_LEN 256
 
 #define ID_PROPERTY_NAME "id"
