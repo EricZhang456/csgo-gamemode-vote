@@ -24,6 +24,10 @@
     {
         "en"    "%s (Current Map)"
     }
+    "CSGO_GAMEMODE_VOTE_IN_PROGRESS"
+    {
+        "en"    "A vote is already in progress."
+    }
     "CSGO_GAMEMODE_VOTE_TITLE"
     {
         "#format"   "{1:s},{2:s}"

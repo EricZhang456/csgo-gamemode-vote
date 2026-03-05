@@ -336,6 +336,10 @@ void ApplyGameModeFirstMap(JSON_Object obj) {
 }
 
 void StartGameModeVote(JSON_Object obj, const char[] map, int client) {
+    if (!cvarVoteAllowSpec.BoolValue && GetClientTeam(client) == CS_TEAM_SPECTATOR) {
+        NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_Spectators);
+        return;
+    }
     NativeVote vote = new NativeVote(Vote_GameModeVoteHandler, NativeVotesType_Custom_YesNo,
         NATIVEVOTES_ACTIONS_DEFAULT | MenuAction_Display);
     vote.Initiator = client;
@@ -412,6 +416,11 @@ public Action Cmd_VoteMode(int client, int args) {
     int nativeVotesVoteDelay = NativeVotes_CheckVoteDelay();
     if (voteInCooldown || nativeVotesVoteDelay) {
         NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_Recent, voteCooldownExpireTime - GetTime() + nativeVotesVoteDelay);
+        return Plugin_Handled;
+    }
+
+    if (NativeVotes_IsVoteInProgress()) {
+        PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_IN_PROGRESS");
         return Plugin_Handled;
     }
 
