@@ -1,0 +1,27 @@
+// do not write comments in this file! it's not valid json
+// this is a list of json objects of all the game modes
+[
+    {
+        // id of the game mode, this must be unique
+        "id": "Foo",
+        // name of the game mode that will be displayed in the selection menu
+        "title": "Some Game Mode",
+        // what game_type should be set to, this should be an integer
+        "game_type": 0,
+        // what game_mode should be set to, this should be an integer
+        "game_mode": 0,
+        // optional: what sv_game_mode_flags should be set to, omit for 0, this should be an integer
+        "game_mode_flags": 0,
+        // optional: what sv_skirmish_id should be set to, omit for 0, this should be an integer
+        "skirmish_id": 3,
+        // what mapgroup to use
+        "mapgroup": "mg_active",
+        // a list of maps that will be displayed in the map selection menu
+        "maplist": [
+            "de_dust2",
+            "de_mirage"
+            // ...
+        ]
+    }
+    // ...
+]

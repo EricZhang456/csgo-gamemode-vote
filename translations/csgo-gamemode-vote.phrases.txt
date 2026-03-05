@@ -14,8 +14,7 @@
     }
     "CSGO_GAMEMODE_MENU_SELECTED"
     {
-        "#formet"   "{1:s}"
-        "en"    "{1} (Selected)"
+        "en"    "%s (Current Mode)"
     }
     "CSGO_GAMEMODE_MAP_MENU_TITLE"
     {
@@ -23,8 +22,7 @@
     }
     "CSGO_GAMEMODE_MAP_MENU_PLAYING"
     {
-        "#format"   "{1:s}"
-        "en"    "{1} (Current Map)"
+        "en"    "%s (Current Map)"
     }
     "CSGO_GAMEMODE_VOTE_TITLE"
     {

@@ -1,10 +1,11 @@
 #include <sourcemod>
+#include <sdktools_gamerules>
+#include <cstrike>
 #include <clientprefs>
 #include <json>
 #include <nativevotes>
 
 #define BASE_STR_LEN 256
-#define MAX_MAP_LIST_SIZE 100
 
 #define ID_PROPERTY_NAME "id"
 #define TITLE_PROPERTY_NAME "title"
@@ -24,6 +25,8 @@ public Plugin myinfo = {
 };
 
 char currentModeId[BASE_STR_LEN];
+int voteCooldownExpireTime;
+bool voteInCooldown;
 
 JSON_Array gameModes;
 
@@ -38,9 +41,9 @@ ConVar cvarWarGameModes;
 ConVar cvarConfigPath;
 ConVar cvarStartupMode;
 ConVar cvarShowHintByDefault;
+ConVar cvarVoteAllowSpec;
 ConVar cvarVoteCooldown;
 ConVar cvarVoteTimer;
-ConVar cvarVotePercent;
 ConVar cvarVoteDuration;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
@@ -63,6 +66,7 @@ public void OnPluginStart() {
     cvarSkirmishId = FindConVar("sv_skirmish_id");
     cvarWarGameModeNumModes = FindConVar("mp_endmatch_votenextmap_wargames_nummodes");
     cvarWarGameModes = FindConVar("mp_endmatch_votenextmap_wargames_modes");
+    cvarVoteAllowSpec = FindConVar("sv_vote_allow_spectator");
     
     cvarWarGameModeNumModes.IntValue = 0;
     cvarWarGameModes.SetString("0");
@@ -73,7 +77,6 @@ public void OnPluginStart() {
     cvarConfigPath = CreateConVar("sm_game_mode_vote_config_path", "configs/gamemode-vote.json", "Path to the config file relative to the SourceMod root directory");
     cvarStartupMode = CreateConVar("sm_game_mode_startup_mode", "", "Game mode server should start at.");
     cvarShowHintByDefault = CreateConVar("sm_game_mode_vote_show_hint_default", "1", "Tell clients they can vote for game mode by default.");
-    cvarVotePercent = CreateConVar("sm_game_mode_vote_percent", "0.6", "How many players are required to pass the game mode vote?", _, true, 0.0, true, 1.0);
     cvarVoteDuration = CreateConVar("sm_game_mode_vote_duration", "30", "How long should the game mode vote last?", _, true, 0.0);
     cvarVoteCooldown = CreateConVar("sm_game_mode_vote_cooldown", "300", "Minimum time before another game mode vote can occur (in seconds).", _, true, 0.0);
     cvarVoteTimer = CreateConVar("sm_game_mode_vote_timer", "5.0", "How long should the plugin wait before the game mode is applied when a vote is successful?", _, true, 0.0);
@@ -82,23 +85,29 @@ public void OnPluginStart() {
     cookieNoHintWhenEnter.SetPrefabMenu(CookieMenu_OnOff_Int, "Show game mode vote hint", OnHintCookieMenu);
 
     RegConsoleCmd("sm_votemode", Cmd_VoteMode, "Vote for the next game mode.");
-    RegAdminCmd("sm_reload_gamemode_vote_config", Cmd_ReloadModeConfig, ADMFLAG_CONFIG ,"Reload config for game mode vote.");
+    RegAdminCmd("sm_reload_gamemode_vote_config", Cmd_ReloadModeConfig, ADMFLAG_CONFIG, "Reload config for game mode vote.");
 
     AutoExecConfig();
 }
 
+public void OnMapStart() {
+    voteInCooldown = false;
+}
+
 public void OnConfigsExecuted() {
     LoadGameModeVoteConfig();
-    char startupMode[BASE_STR_LEN];
-    cvarStartupMode.GetString(startupMode, sizeof(startupMode));
-    JSON_Object mode = GetGameModeFromId(startupMode);
-    if (mode == null) {
-        mode = gameModes.GetObject(0);
-        char modeId[BASE_STR_LEN];
-        mode.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
-        LogMessage("Warning: no startup game mode specified or startup game mode doesn't exist. Starting the first game mode in config (%s)...", modeId);
+    if (!strlen(currentModeId)) {
+        char startupMode[BASE_STR_LEN];
+        cvarStartupMode.GetString(startupMode, sizeof(startupMode));
+        JSON_Object mode = GetGameModeFromId(startupMode);
+        if (mode == null) {
+            mode = gameModes.GetObject(0);
+            char modeId[BASE_STR_LEN];
+            mode.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
+            LogMessage("Warning: no startup game mode specified or startup game mode doesn't exist. Starting the first game mode in config (%s)...", modeId);
+        }
+        ApplyGameModeFirstMap(mode);
     }
-    ApplyGameModeFirstMap(mode); 
 }
 
 public void OnAllPluginsLoaded() {
@@ -243,6 +252,7 @@ bool ValidateGameModeEntry(JSON_Object obj, JSON_Array allModes, char[] error, i
         return false;
     }
 
+    int duplicateCount = 0;
     for (int i = 0; i < allModes.Length; i++) {
         JSON_Object current = allModes.GetObject(i);
         if (current == null) {
@@ -251,13 +261,17 @@ bool ValidateGameModeEntry(JSON_Object obj, JSON_Array allModes, char[] error, i
         }
         char currentId[BASE_STR_LEN];
         if (!current.GetString(ID_PROPERTY_NAME, currentId, sizeof(currentId))) {
-            strcopy(error, errorLen, "invalid id encountered while iterating through all game modes, please help")
+            strcopy(error, errorLen, "invalid id encountered while iterating through all game modes, please help");
             return false;
         }
         if (StrEqual(objId, currentId)) {
-            Format(error, errorLen, "duplicate id: %s", objId);
-            return false;
+            duplicateCount++;
         }
+    }
+
+    if (duplicateCount > 1) {
+        Format(error, errorLen, "duplicate id: %s", objId);
+        return false;
     }
 
     return true;
@@ -316,16 +330,24 @@ void ApplyGameModeFirstMap(JSON_Object obj) {
     ApplyGameMode(obj, map);
 }
 
-void StartGameModeVote(JSON_Object obj, const char[] map) {
-    NativeVote vote = new NativeVote(Vote_GameModeVoteHandler, NativeVotesType_Custom_Mult,
+void StartGameModeVote(JSON_Object obj, const char[] map, int client) {
+    NativeVote vote = new NativeVote(Vote_GameModeVoteHandler, NativeVotesType_Custom_YesNo,
         NATIVEVOTES_ACTIONS_DEFAULT | MenuAction_Display);
+    vote.Initiator = client;
     char modeId[BASE_STR_LEN], modeTitle[BASE_STR_LEN];
     obj.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
     obj.GetString(TITLE_PROPERTY_NAME, modeTitle, sizeof(modeTitle));
     vote.SetTitle("%s;%s;%s", modeId, modeTitle, map);
-    vote.AddItem("yes", "Yes");
-    vote.AddItem("no", "No");
     vote.DisplayVoteToAll(cvarVoteDuration.IntValue);
+
+    voteInCooldown = true;
+    voteCooldownExpireTime = GetTime() + RoundToNearest(cvarVoteCooldown.FloatValue);
+    CreateTimer(cvarVoteCooldown.FloatValue, Timer_OnVoteCooldownTimerEnd, _, TIMER_FLAG_NO_MAPCHANGE);
+}
+
+public Action Timer_OnVoteCooldownTimerEnd(Handle timer) {
+    voteInCooldown = false;
+    return Plugin_Continue;
 }
 
 void ShowModeSelectMenu(int client) {
@@ -366,12 +388,28 @@ void ShowMapSelectMenu(int client, JSON_Object mode) {
             style = ITEMDRAW_DISABLED;
         }
         Format(itemId, sizeof(itemId), "%s;%s", modeId, map);
-        mapSelectMenu.AddItem(map, map, style);
+        mapSelectMenu.AddItem(itemId, map, style);
     }
     mapSelectMenu.Display(client, MENU_TIME_FOREVER);
 }
 
 public Action Cmd_VoteMode(int client, int args) {
+    if (!cvarVoteAllowSpec.BoolValue && GetClientTeam(client) == CS_TEAM_SPECTATOR) {
+        NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_Spectators);
+        return Plugin_Handled;
+    }
+
+    if (GameRules_GetProp("m_bWarmupPeriod") == 1) {
+        NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_Warmup);
+        return Plugin_Handled;
+    }
+
+    int nativeVotesVoteDelay = NativeVotes_CheckVoteDelay();
+    if (voteInCooldown || nativeVotesVoteDelay) {
+        NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_Recent, voteCooldownExpireTime - GetTime() + nativeVotesVoteDelay);
+        return Plugin_Handled;
+    }
+
     ShowModeSelectMenu(client);
     return Plugin_Handled;
 }
@@ -393,7 +431,6 @@ public void Menu_ModeSelectMenuHandler(Menu menu, MenuAction action, int param1,
     }
 }
 
-
 public int Menu_MapSelectMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
     switch (action) {
         case MenuAction_Select: {
@@ -404,7 +441,7 @@ public int Menu_MapSelectMenuHandler(Menu menu, MenuAction action, int param1, i
             if (selectedMode == null) {
                 SetFailState("Selected game mode is null, something has gone horribly wrong.");
             }
-            StartGameModeVote(selectedMode, map);
+            StartGameModeVote(selectedMode, map, param1);
         }
         case MenuAction_End: {
             delete menu;
@@ -432,25 +469,22 @@ public int Vote_GameModeVoteHandler(NativeVote vote, MenuAction action, int para
                 return view_as<int>(NativeVotes_RedrawVoteItem(targetStr));
             }
         }
+        case MenuAction_VoteCancel: {
+            if (param1 == VoteCancel_NoVotes) {
+                vote.DisplayFail(NativeVotesFail_NotEnoughVotes);
+            } else {
+                vote.DisplayFail(NativeVotesFail_Generic);
+            }
+        }
         case MenuAction_VoteEnd: {
-            char item[64];
-            float percent, limit;
-            int votes, totalVotes;
-
-            GetMenuVoteInfo(param2, votes, totalVotes);
-            vote.GetItem(param1, item, sizeof(item));
-
-            percent = float(votes) / float(totalVotes);
-            limit = cvarVotePercent.FloatValue;
-
-            if (FloatCompare(percent, limit) >= 0 && StrEqual(item, "yes")) {
+            if (param1 == NATIVEVOTES_VOTE_NO) {
+                vote.DisplayFail(NativeVotesFail_Loses);
+            } else {
                 char voteTitle[BASE_STR_LEN], modeId[BASE_STR_LEN], modeTitle[BASE_STR_LEN], map[BASE_STR_LEN];
                 vote.GetTitle(voteTitle, sizeof(voteTitle));
                 SplitThreeStringsAtSemicolon(voteTitle, modeId, sizeof(modeId), modeTitle, sizeof(modeTitle), map, sizeof(map));
                 vote.DisplayPass("%t", "CSGO_GAMEMODE_VOTE_SUCCESS", modeTitle, map);
                 ScheduleGameModeApply(modeId, map);
-            } else {
-                vote.DisplayFail(NativeVotesFail_Loses);
             }
         }
         case MenuAction_End: {
@@ -486,10 +520,10 @@ public Action Timer_ScheduleTimerHandler(Handle timer, DataPack pack) {
 }
 
 void SplitStringAtSemicolon(const char[] source, char[] first, int firstLen, char[] second, int secondLen) {
-    int semiPos = SplitString(source, ";", first, firstLen);
-    if (semiPos != -1) {
-        strcopy(second, secondLen, source[semiPos]);
-    }
+    char strings[2][BASE_STR_LEN];
+    ExplodeString(source, ";", strings, 2, BASE_STR_LEN);
+    strcopy(first, firstLen, strings[0]);
+    strcopy(second, secondLen, strings[1]);    
 }
 
 void SplitThreeStringsAtSemicolon(const char[] source, char[] first, int firstLen, char[] second, int secondLen,
