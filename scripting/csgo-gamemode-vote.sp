@@ -105,6 +105,7 @@ public void OnMapStart() {
 
 public void OnConfigsExecuted() {
     if (gameModes == null || gameModes.Length == 0 || cvarReloadOnMapLoad.BoolValue) {
+        LogMessage("Reloading game mode config...");
         LoadGameModeVoteConfig();
     }
     if (!strlen(currentModeId)) {
