@@ -22,7 +22,7 @@ public Plugin myinfo = {
     name = "CSGO Game Mode Vote",
     author = "Eric Zhang",
     description = "Vote for CSGO game mode.",
-    version = "1.1",
+    version = "1.2",
     url = "https://ericaftereric.top"
 };
 
@@ -410,9 +410,6 @@ void ShowMapSelectMenu(int client, JSON_Object mode) {
         char map[BASE_STR_LEN], itemId[BASE_STR_LEN];
         maplist.GetString(i, map, sizeof(map));
         int style = ITEMDRAW_DEFAULT;
-        if (StrEqual(map, currentMap)) {
-            style = ITEMDRAW_DISABLED;
-        }
         Format(itemId, sizeof(itemId), "%s;%s", modeId, map);
         mapSelectMenu.AddItem(itemId, map, style);
     }

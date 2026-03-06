@@ -20,10 +20,6 @@
     {
         "en"    "Select a map"
     }
-    "CSGO_GAMEMODE_MAP_MENU_PLAYING"
-    {
-        "en"    "%s (Current Map)"
-    }
     "CSGO_GAMEMODE_VOTE_IN_PROGRESS"
     {
         "en"    "A vote is already in progress."
