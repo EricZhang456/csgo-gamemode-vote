@@ -110,7 +110,7 @@ public void OnConfigsExecuted() {
             mode.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
             LogMessage("Warning: no startup game mode specified or startup game mode doesn't exist. Starting the first game mode in config (%s)...", modeId);
         }
-        LogMessage("Starting startup game mode: %s", mode);
+        LogMessage("Starting startup game mode.");
         ApplyGameModeFirstMap(mode);
     } else {
         LogMessage("Current game mode id: %s", currentModeId);
