@@ -352,6 +352,9 @@ void StartGameModeVote(JSON_Object obj, const char[] map, int client) {
         return;
     }
     Menu vote = new Menu(Menu_GameModeVoteHandler, MENU_ACTIONS_ALL);
+    vote.ExitButton = false;
+    vote.ExitBackButton = false;
+    vote.NoVoteButton = false;
     char modeId[BASE_STR_LEN], modeTitle[BASE_STR_LEN];
     obj.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
     obj.GetString(TITLE_PROPERTY_NAME, modeTitle, sizeof(modeTitle));
