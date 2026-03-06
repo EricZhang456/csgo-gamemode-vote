@@ -574,12 +574,3 @@ void SplitStringAtSemicolon(const char[] source, char[] first, int firstLen, cha
     strcopy(first, firstLen, strings[0]);
     strcopy(second, secondLen, strings[1]);    
 }
-
-// void SplitThreeStringsAtSemicolon(const char[] source, char[] first, int firstLen, char[] second, int secondLen,
-//     char[] third, int thirdLen) {
-//     char strings[3][BASE_STR_LEN];
-//     ExplodeString(source, ";", strings, 3, BASE_STR_LEN);
-//     strcopy(first, firstLen, strings[0]);
-//     strcopy(second, secondLen, strings[1]);
-//     strcopy(third, thirdLen, strings[2]);
-// }
