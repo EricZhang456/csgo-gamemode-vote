@@ -1,0 +1,55 @@
+"Phrases"
+{
+    "CSGO_GAMEMODE_VOTE_HINT"
+    {
+        "chi"    "输入 !votemode 来发起模式投票"
+    }
+    "CSGO_GAMEMODE_VOTE_HINT_TOGGLE"
+    {
+        "chi"    "显示模式投票提示"
+    }
+    "CSGO_GAMEMODE_MENU_TITLE"
+    {
+        "chi"    "选择模式"
+    }
+    "CSGO_GAMEMODE_MENU_SELECTED"
+    {
+        "chi"    "%s (当前模式)"
+    }
+    "CSGO_GAMEMODE_MAP_MENU_TITLE"
+    {
+        "chi"    "选择地图"
+    }
+    "CSGO_GAMEMODE_VOTE_IN_PROGRESS"
+    {
+        "chi"    "另一个投票正在进行中"
+    }
+    "CSGO_GAMEMODE_VOTE_SPEC"
+    {
+        "chi"    "旁观者不能发起投票"
+    }
+    "CSGO_GAMEMODE_VOTE_WARMUP"
+    {
+        "chi"    "服务器正在热身中"
+    }
+    "CSGO_GAMEMODE_VOTE_COOLDOWN"
+    {
+        "chi"    "你必须等待 %d 秒才能发起另一个投票"
+    }
+    "CSGO_GAMEMODE_VOTE_TITLE"
+    {
+        "chi"    "更换当前模式？"
+    }
+    "CSGO_GAMEMODE_VOTE_MODE"
+    {
+        "chi"    "模式: %s"
+    }
+    "CSGO_GAMEMODE_VOTE_MAP"
+    {
+        "chi"    "地图: %s"
+    }
+    "CSGO_GAMEMODE_VOTE_SUCCESS"
+    {
+        "chi"    "正在更换模式为 {1} (地图: {2} )..."
+    }
+}
