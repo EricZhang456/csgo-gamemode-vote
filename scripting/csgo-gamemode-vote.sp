@@ -110,7 +110,10 @@ public void OnConfigsExecuted() {
             mode.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
             LogMessage("Warning: no startup game mode specified or startup game mode doesn't exist. Starting the first game mode in config (%s)...", modeId);
         }
+        LogMessage("Starting startup game mode: %s", mode);
         ApplyGameModeFirstMap(mode);
+    } else {
+        LogMessage("Current game mode id: %s", currentModeId);
     }
 }
 
@@ -346,7 +349,7 @@ void StartGameModeVote(JSON_Object obj, const char[] map, int client) {
     char modeId[BASE_STR_LEN], modeTitle[BASE_STR_LEN];
     obj.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
     obj.GetString(TITLE_PROPERTY_NAME, modeTitle, sizeof(modeTitle));
-    vote.SetTitle("%s;%s;%s", modeId, modeTitle, map);
+    vote.SetDetails("%s;%s;%s", modeId, modeTitle, map);
     vote.DisplayVoteToAll(cvarVoteDuration.IntValue);
 
     voteInCooldown = true;
@@ -413,14 +416,14 @@ public Action Cmd_VoteMode(int client, int args) {
         return Plugin_Handled;
     }
 
-    int nativeVotesVoteDelay = NativeVotes_CheckVoteDelay();
-    if (voteInCooldown || nativeVotesVoteDelay) {
-        NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_Recent, voteCooldownExpireTime - GetTime() + nativeVotesVoteDelay);
+    if (NativeVotes_IsVoteInProgress()) {
+        PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_IN_PROGRESS");
         return Plugin_Handled;
     }
 
-    if (NativeVotes_IsVoteInProgress()) {
-        PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_IN_PROGRESS");
+    int nativeVotesVoteDelay = NativeVotes_CheckVoteDelay();
+    if (voteInCooldown || nativeVotesVoteDelay) {
+        NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_Recent, voteCooldownExpireTime - GetTime() + nativeVotesVoteDelay);
         return Plugin_Handled;
     }
 
@@ -470,7 +473,7 @@ public int Vote_GameModeVoteHandler(NativeVote vote, MenuAction action, int para
         case MenuAction_Display: {
             char voteTitle[BASE_STR_LEN], modeId[BASE_STR_LEN], modeTitle[BASE_STR_LEN],
                 map[BASE_STR_LEN], targetStr[BASE_STR_LEN];
-            vote.GetTitle(voteTitle, sizeof(voteTitle));
+            vote.GetDetails(voteTitle, sizeof(voteTitle));
             SplitThreeStringsAtSemicolon(voteTitle, modeId, sizeof(modeId), modeTitle, sizeof(modeTitle), map, sizeof(map));
             Format(targetStr, sizeof(targetStr), "%T", "CSGO_GAMEMODE_VOTE_TITLE", param1, modeTitle, map);
             return view_as<int>(NativeVotes_RedrawVoteTitle(targetStr));
