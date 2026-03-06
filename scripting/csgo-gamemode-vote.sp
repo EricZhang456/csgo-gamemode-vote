@@ -105,7 +105,6 @@ public void OnMapStart() {
 
 public void OnConfigsExecuted() {
     if (gameModes == null || gameModes.Length == 0 || cvarReloadOnMapLoad.BoolValue) {
-        LogMessage("Reloading game mode config...");
         LoadGameModeVoteConfig();
     }
     if (!strlen(currentModeId)) {
@@ -172,6 +171,7 @@ public void OnHintCookieMenu(int client, CookieMenuAction action, any info, char
 }
 
 void LoadGameModeVoteConfig() {
+    LogMessage("Reloading game mode config...");
     if (gameModes != null) {
         json_cleanup_and_delete(gameModes);
     }
