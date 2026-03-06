@@ -22,7 +22,7 @@ public Plugin myinfo = {
     name = "CSGO Game Mode Vote",
     author = "Eric Zhang",
     description = "Vote for CSGO game mode.",
-    version = "1.2.1",
+    version = "1.2.2",
     url = "https://ericaftereric.top"
 };
 
@@ -166,7 +166,7 @@ public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 
 public void OnHintCookieMenu(int client, CookieMenuAction action, any info, char[] buffer, int maxlen) {
     if (action == CookieMenuAction_DisplayOption) {
-        Format(buffer, maxlen, "%t", "CSGO_GAMEMODE_VOTE_HINT_TOGGLE", client);
+        Format(buffer, maxlen, "%T", "CSGO_GAMEMODE_VOTE_HINT_TOGGLE", client);
     }
 }
 
