@@ -22,7 +22,7 @@ public Plugin myinfo = {
     name = "CSGO Game Mode Vote",
     author = "Eric Zhang",
     description = "Vote for CSGO game mode.",
-    version = "1.2",
+    version = "1.2.1",
     url = "https://ericaftereric.top"
 };
 
@@ -347,8 +347,7 @@ void ApplyGameModeFirstMap(JSON_Object obj) {
 }
 
 void StartGameModeVote(JSON_Object obj, const char[] map, int client) {
-    if (!cvarVoteAllowSpec.BoolValue && GetClientTeam(client) == CS_TEAM_SPECTATOR) {
-        PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_SPEC");
+    if (!CheckCanStartVote(client)) {
         return;
     }
     Menu vote = new Menu(Menu_GameModeVoteHandler, MENU_ACTIONS_ALL);
@@ -416,25 +415,33 @@ void ShowMapSelectMenu(int client, JSON_Object mode) {
     mapSelectMenu.Display(client, MENU_TIME_FOREVER);
 }
 
-public Action Cmd_VoteMode(int client, int args) {
+bool CheckCanStartVote(int client) {
     if (!cvarVoteAllowSpec.BoolValue && GetClientTeam(client) == CS_TEAM_SPECTATOR) {
         PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_SPEC");
-        return Plugin_Handled;
+        return false;
     }
 
     if (GameRules_GetProp("m_bWarmupPeriod") == 1) {
         PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_WARMUP");
-        return Plugin_Handled;
+        return false;
     }
 
     if (IsVoteInProgress()) {
         PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_IN_PROGRESS");
-        return Plugin_Handled;
+        return false;
     }
 
     int voteDelay = CheckVoteDelay();
     if (voteInCooldown || voteDelay) {
         PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_COOLDOWN", voteCooldownExpireTime - GetTime() + voteDelay);
+        return false;
+    }
+
+    return true;
+}
+
+public Action Cmd_VoteMode(int client, int args) {
+    if (!CheckCanStartVote(client)) {
         return Plugin_Handled;
     }
 
