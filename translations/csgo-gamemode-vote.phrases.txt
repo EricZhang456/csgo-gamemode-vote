@@ -28,10 +28,29 @@
     {
         "en"    "A vote is already in progress."
     }
+    "CSGO_GAMEMODE_VOTE_SPEC"
+    {
+        "en"    "Spectators cannot call this vote."
+    }
+    "CSGO_GAMEMODE_VOTE_WARMUP"
+    {
+        "en"    "Server is still in warmup."
+    }
+    "CSGO_GAMEMODE_VOTE_COOLDOWN"
+    {
+        "en"    "You must wait %d seconds before you can call another vote."
+    }
     "CSGO_GAMEMODE_VOTE_TITLE"
     {
-        "#format"   "{1:s},{2:s}"
-        "en"    "Change the current game mode to {1} ({2})?"
+        "en"    "Change the current game mode?"
+    }
+    "CSGO_GAMEMODE_VOTE_MODE"
+    {
+        "en"    "Game mode: %s"
+    }
+    "CSGO_GAMEMODE_VOTE_MAP"
+    {
+        "en"    "Map: %s"
     }
     "CSGO_GAMEMODE_VOTE_SUCCESS"
     {

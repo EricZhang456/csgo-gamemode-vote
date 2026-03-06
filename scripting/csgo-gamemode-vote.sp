@@ -3,8 +3,8 @@
 #include <cstrike>
 #include <clientprefs>
 #include <json>
-#include <nativevotes>
 
+// 5 mb of stack/heap
 #pragma dynamic 1310720
 
 #define BASE_STR_LEN 256
@@ -22,7 +22,7 @@ public Plugin myinfo = {
     name = "CSGO Game Mode Vote",
     author = "Eric Zhang",
     description = "Vote for CSGO game mode.",
-    version = "1.0",
+    version = "1.1",
     url = "https://ericaftereric.top"
 };
 
@@ -47,6 +47,8 @@ ConVar cvarVoteAllowSpec;
 ConVar cvarVoteCooldown;
 ConVar cvarVoteTimer;
 ConVar cvarVoteDuration;
+ConVar cvarVotePercent;
+ConVar cvarReloadOnMapLoad;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
     char game[PLATFORM_MAX_PATH];
@@ -60,6 +62,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 public void OnPluginStart() {
     LoadTranslations("common.phrases");
+    LoadTranslations("basevotes.phrases");
     LoadTranslations("csgo-gamemode-vote.phrases");
 
     cvarGameMode = FindConVar("game_mode");
@@ -82,6 +85,8 @@ public void OnPluginStart() {
     cvarVoteDuration = CreateConVar("sm_game_mode_vote_duration", "30", "How long should the game mode vote last?", _, true, 0.0);
     cvarVoteCooldown = CreateConVar("sm_game_mode_vote_cooldown", "300", "Minimum time before another game mode vote can occur (in seconds).", _, true, 0.0);
     cvarVoteTimer = CreateConVar("sm_game_mode_vote_timer", "5.0", "How long should the plugin wait before the game mode is applied when a vote is successful?", _, true, 0.0);
+    cvarVotePercent = CreateConVar("sm_game_mode_vote_percent", "0.6", "How many players are required for the vote to pass?", _, true, 0.0, true, 1.0);
+    cvarReloadOnMapLoad = CreateConVar("sm_game_mode_reload_on_map_load", "0", "Reload the config on every map load.");
 
     cookieNoHintWhenEnter = new Cookie("Show game mode vote hint", "Toggle the game mode vote hint when you enter the server.", CookieAccess_Public);
     cookieNoHintWhenEnter.SetPrefabMenu(CookieMenu_OnOff_Int, "Show game mode vote hint", OnHintCookieMenu);
@@ -99,7 +104,9 @@ public void OnMapStart() {
 }
 
 public void OnConfigsExecuted() {
-    LoadGameModeVoteConfig();
+    if (gameModes == null || gameModes.Length == 0 || cvarReloadOnMapLoad.BoolValue) {
+        LoadGameModeVoteConfig();
+    }
     if (!strlen(currentModeId)) {
         char startupMode[BASE_STR_LEN];
         cvarStartupMode.GetString(startupMode, sizeof(startupMode));
@@ -340,16 +347,19 @@ void ApplyGameModeFirstMap(JSON_Object obj) {
 
 void StartGameModeVote(JSON_Object obj, const char[] map, int client) {
     if (!cvarVoteAllowSpec.BoolValue && GetClientTeam(client) == CS_TEAM_SPECTATOR) {
-        NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_Spectators);
+        PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_SPEC");
         return;
     }
-    NativeVote vote = new NativeVote(Vote_GameModeVoteHandler, NativeVotesType_Custom_YesNo,
-        NATIVEVOTES_ACTIONS_DEFAULT | MenuAction_Display);
-    vote.Initiator = client;
+    Menu vote = new Menu(Menu_GameModeVoteHandler, MENU_ACTIONS_ALL);
     char modeId[BASE_STR_LEN], modeTitle[BASE_STR_LEN];
     obj.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
     obj.GetString(TITLE_PROPERTY_NAME, modeTitle, sizeof(modeTitle));
-    vote.SetDetails("%s;%s;%s", modeId, modeTitle, map);
+    vote.SetTitle("CSGO_GAMEMODE_VOTE_TITLE");
+    vote.AddItem(modeTitle, "CSGO_GAMEMODE_VOTE_MODE", ITEMDRAW_DISABLED);
+    vote.AddItem(map, "CSGO_GAMEMODE_VOTE_MAP", ITEMDRAW_DISABLED),
+    vote.AddItem(modeId, modeId, ITEMDRAW_IGNORE);
+    vote.AddItem("yes", "Yes");
+    vote.AddItem("no", "No");
     vote.DisplayVoteToAll(cvarVoteDuration.IntValue);
 
     voteInCooldown = true;
@@ -407,23 +417,23 @@ void ShowMapSelectMenu(int client, JSON_Object mode) {
 
 public Action Cmd_VoteMode(int client, int args) {
     if (!cvarVoteAllowSpec.BoolValue && GetClientTeam(client) == CS_TEAM_SPECTATOR) {
-        NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_Spectators);
+        PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_SPEC");
         return Plugin_Handled;
     }
 
     if (GameRules_GetProp("m_bWarmupPeriod") == 1) {
-        NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_Warmup);
+        PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_WARMUP");
         return Plugin_Handled;
     }
 
-    if (NativeVotes_IsVoteInProgress()) {
+    if (IsVoteInProgress()) {
         PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_IN_PROGRESS");
         return Plugin_Handled;
     }
 
-    int nativeVotesVoteDelay = NativeVotes_CheckVoteDelay();
-    if (voteInCooldown || nativeVotesVoteDelay) {
-        NativeVotes_DisplayCallVoteFail(client, NativeVotesCallFail_Recent, voteCooldownExpireTime - GetTime() + nativeVotesVoteDelay);
+    int voteDelay = CheckVoteDelay();
+    if (voteInCooldown || voteDelay) {
+        PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_COOLDOWN", voteCooldownExpireTime - GetTime() + voteDelay);
         return Plugin_Handled;
     }
 
@@ -467,45 +477,66 @@ public int Menu_MapSelectMenuHandler(Menu menu, MenuAction action, int param1, i
     return 0;
 }
 
-public int Vote_GameModeVoteHandler(NativeVote vote, MenuAction action, int param1, int param2) {
-    // title is id;title;map
+public int Menu_GameModeVoteHandler(Menu menu, MenuAction action, int param1, int param2) {
     switch (action) {
         case MenuAction_Display: {
-            char voteTitle[BASE_STR_LEN], modeId[BASE_STR_LEN], modeTitle[BASE_STR_LEN],
-                map[BASE_STR_LEN], targetStr[BASE_STR_LEN];
-            vote.GetDetails(voteTitle, sizeof(voteTitle));
-            SplitThreeStringsAtSemicolon(voteTitle, modeId, sizeof(modeId), modeTitle, sizeof(modeTitle), map, sizeof(map));
-            Format(targetStr, sizeof(targetStr), "%T", "CSGO_GAMEMODE_VOTE_TITLE", param1, modeTitle, map);
-            return view_as<int>(NativeVotes_RedrawVoteTitle(targetStr));
+            char title[64], targetStr[BASE_STR_LEN];
+            menu.GetTitle(title, sizeof(title));
+            Format(targetStr, sizeof(targetStr), "%T", title, param1);
+            Panel panel = view_as<Panel>(param2);
+            panel.SetTitle(targetStr);
+        }
+        case MenuAction_DrawItem: {
+            char info[64], display[64];
+            menu.GetItem(param2, info, sizeof(info), _, display, sizeof(display));
+            if (StrEqual(info, "yes") || StrEqual(info, "no")) {
+                return ITEMDRAW_DEFAULT;
+            } else if (StrEqual(display, "CSGO_GAMEMODE_VOTE_MODE") || StrEqual(display, "CSGO_GAMEMODE_VOTE_MAP")) {
+                return ITEMDRAW_DISABLED;
+            }
+            return ITEMDRAW_SPACER;
         }
         case MenuAction_DisplayItem: {
-            char sourceInfoStr[64], sourceDispStr[64], targetStr[64];
-            vote.GetItem(param2, sourceInfoStr, sizeof(sourceInfoStr), sourceDispStr, sizeof(sourceDispStr));
-            if (StrEqual(sourceInfoStr, "yes") || StrEqual(sourceInfoStr, "no")) {
-                Format(targetStr, sizeof(targetStr), "%T", sourceDispStr, param1);
-                return view_as<int>(NativeVotes_RedrawVoteItem(targetStr));
+            char info[BASE_STR_LEN], display[BASE_STR_LEN];
+            menu.GetItem(param2, info, sizeof(info), _, display, sizeof(display));
+            if (StrEqual(info, "yes") || StrEqual(info, "no")) {
+                char targetStr[BASE_STR_LEN];
+                Format(targetStr, sizeof(targetStr), "%T", display, param1);
+                return RedrawMenuItem(targetStr);
+            }
+            if (StrEqual(display, "CSGO_GAMEMODE_VOTE_MODE") || StrEqual(display, "CSGO_GAMEMODE_VOTE_MAP")) {
+                char targetStr[BASE_STR_LEN];
+                Format(targetStr, sizeof(targetStr), "%T", display, param1, info);
+                return RedrawMenuItem(targetStr);
             }
         }
         case MenuAction_VoteCancel: {
-            if (param1 == VoteCancel_NoVotes) {
-                vote.DisplayFail(NativeVotesFail_NotEnoughVotes);
-            } else {
-                vote.DisplayFail(NativeVotesFail_Generic);
-            }
+            PrintToChatAll("[SM] %t", "No Votes Cast");
         }
         case MenuAction_VoteEnd: {
-            if (param1 == NATIVEVOTES_VOTE_NO) {
-                vote.DisplayFail(NativeVotesFail_Loses);
-            } else {
-                char voteTitle[BASE_STR_LEN], modeId[BASE_STR_LEN], modeTitle[BASE_STR_LEN], map[BASE_STR_LEN];
-                vote.GetTitle(voteTitle, sizeof(voteTitle));
-                SplitThreeStringsAtSemicolon(voteTitle, modeId, sizeof(modeId), modeTitle, sizeof(modeTitle), map, sizeof(map));
-                vote.DisplayPass("%t", "CSGO_GAMEMODE_VOTE_SUCCESS", modeTitle, map);
+            char item[BASE_STR_LEN];
+            float percent, limit = cvarVotePercent.FloatValue;
+            int votes, totalVotes;
+
+            GetMenuVoteInfo(param2, votes, totalVotes);
+            menu.GetItem(param1, item, sizeof(item));
+
+            percent = float(votes) / float(totalVotes);
+            if (FloatCompare(percent, limit) >= 0 && StrEqual(item, "yes")) {
+                char modeTitle[BASE_STR_LEN], map[BASE_STR_LEN], modeId[BASE_STR_LEN];
+                menu.GetItem(0, modeTitle, sizeof(modeTitle));
+                menu.GetItem(1, map, sizeof(map));
+                menu.GetItem(2, modeId, sizeof(modeId));
+                PrintToChatAll("[SM] %t", "Vote Successful", RoundToNearest(100.0 * percent), totalVotes);
+                PrintToChatAll("[SM] %t", "CSGO_GAMEMODE_VOTE_SUCCESS", modeTitle, map);
                 ScheduleGameModeApply(modeId, map);
+            } else {
+                PrintToChatAll("[SM] %t", "Vote Failed", RoundToNearest(100.0 * limit),
+                    RoundToNearest(100.0 * (1.0 - percent)), totalVotes);
             }
         }
         case MenuAction_End: {
-            vote.Close();
+            delete menu;
         }
     }
     return 0;
@@ -543,11 +574,11 @@ void SplitStringAtSemicolon(const char[] source, char[] first, int firstLen, cha
     strcopy(second, secondLen, strings[1]);    
 }
 
-void SplitThreeStringsAtSemicolon(const char[] source, char[] first, int firstLen, char[] second, int secondLen,
-    char[] third, int thirdLen) {
-    char strings[3][BASE_STR_LEN];
-    ExplodeString(source, ";", strings, 3, BASE_STR_LEN);
-    strcopy(first, firstLen, strings[0]);
-    strcopy(second, secondLen, strings[1]);
-    strcopy(third, thirdLen, strings[2]);
-}
+// void SplitThreeStringsAtSemicolon(const char[] source, char[] first, int firstLen, char[] second, int secondLen,
+//     char[] third, int thirdLen) {
+//     char strings[3][BASE_STR_LEN];
+//     ExplodeString(source, ";", strings, 3, BASE_STR_LEN);
+//     strcopy(first, firstLen, strings[0]);
+//     strcopy(second, secondLen, strings[1]);
+//     strcopy(third, thirdLen, strings[2]);
+// }
