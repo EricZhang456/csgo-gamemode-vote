@@ -22,7 +22,7 @@ public Plugin myinfo = {
     name = "CSGO Game Mode Vote",
     author = "Eric Zhang",
     description = "Vote for CSGO game mode.",
-    version = "1.2.2",
+    version = "1.2.3",
     url = "https://ericaftereric.top"
 };
 
@@ -94,7 +94,7 @@ public void OnPluginStart() {
     RegConsoleCmd("sm_votemode", Cmd_VoteMode, "Vote for the next game mode.");
     RegAdminCmd("sm_reload_gamemode_vote_config", Cmd_ReloadModeConfig, ADMFLAG_CONFIG, "Reload config for game mode vote.");
 
-    HookEvent("player_team", Event_PlayerTeam);
+    HookEvent("player_spawn", Event_PlayerSpawn);
 
     AutoExecConfig();
 }
@@ -154,7 +154,7 @@ public void OnVoteModeCvarChanged(ConVar convar, const char[] oldValue, const ch
     convar.SetString("0");
 }
 
-public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast) {
+public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast) {
     int client = GetClientOfUserId(event.GetInt("userid"));
     if (IsFakeClient(client) || IsClientSourceTV(client) || IsClientReplay(client)) {
         return;
