@@ -394,7 +394,6 @@ void ShowModeSelectMenu(int client) {
         }
         gameModeSelectMenu.AddItem(id, title, style);
     }
-    gameModeSelectMenu.ExitBackButton = true;
     gameModeSelectMenu.Display(client, MENU_TIME_FOREVER);
 }
 
@@ -413,6 +412,7 @@ void ShowMapSelectMenu(int client, JSON_Object mode) {
         Format(itemId, sizeof(itemId), "%s;%s", modeId, map);
         mapSelectMenu.AddItem(itemId, map, style);
     }
+    mapSelectMenu.ExitBackButton = true;
     mapSelectMenu.Display(client, MENU_TIME_FOREVER);
 }
 
@@ -461,11 +461,6 @@ public void Menu_ModeSelectMenuHandler(Menu menu, MenuAction action, int param1,
             }
             ShowMapSelectMenu(param1, selectedMode);
         }
-        case MenuAction_Cancel: {
-            if (param2 == MenuCancel_ExitBack) {
-                ShowModeSelectMenu(param1);
-            }
-        }
         case MenuAction_End: {
             delete menu;
         }
@@ -483,6 +478,11 @@ public int Menu_MapSelectMenuHandler(Menu menu, MenuAction action, int param1, i
                 SetFailState("Selected game mode is null, something has gone horribly wrong.");
             }
             StartGameModeVote(selectedMode, map, param1);
+        }
+        case MenuAction_Cancel: {
+            if (param2 == MenuCancel_ExitBack) {
+                ShowModeSelectMenu(param1);
+            }
         }
         case MenuAction_End: {
             delete menu;
