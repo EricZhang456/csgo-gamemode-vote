@@ -394,6 +394,7 @@ void ShowModeSelectMenu(int client) {
         }
         gameModeSelectMenu.AddItem(id, title, style);
     }
+    gameModeSelectMenu.ExitBackButton = true;
     gameModeSelectMenu.Display(client, MENU_TIME_FOREVER);
 }
 
@@ -459,6 +460,11 @@ public void Menu_ModeSelectMenuHandler(Menu menu, MenuAction action, int param1,
                 SetFailState("Selected game mode is null, something has gone horribly wrong.");
             }
             ShowMapSelectMenu(param1, selectedMode);
+        }
+        case MenuAction_Cancel: {
+            if (param2 == MenuCancel_ExitBack) {
+                ShowModeSelectMenu(param1);
+            }
         }
         case MenuAction_End: {
             delete menu;
