@@ -44,6 +44,7 @@ ConVar cvarConfigPath;
 ConVar cvarStartupMode;
 ConVar cvarShowHintByDefault;
 ConVar cvarVoteAllowSpec;
+ConVar cvarVoteAllowWarmup;
 ConVar cvarVoteCooldown;
 ConVar cvarVoteTimer;
 ConVar cvarVoteDuration;
@@ -72,6 +73,7 @@ public void OnPluginStart() {
     cvarWarGameModeNumModes = FindConVar("mp_endmatch_votenextmap_wargames_nummodes");
     cvarWarGameModes = FindConVar("mp_endmatch_votenextmap_wargames_modes");
     cvarVoteAllowSpec = FindConVar("sv_vote_allow_spectators");
+    cvarVoteAllowWarmup = FindConVar("sv_vote_allow_in_warmup");
     
     cvarWarGameModeNumModes.IntValue = 0;
     cvarWarGameModes.SetString("0");
@@ -422,7 +424,7 @@ bool CheckCanStartVote(int client) {
         return false;
     }
 
-    if (GameRules_GetProp("m_bWarmupPeriod") == 1) {
+    if (GameRules_GetProp("m_bWarmupPeriod") == 1 && !cvarVoteAllowWarmup.BoolValue) {
         PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_WARMUP");
         return false;
     }
