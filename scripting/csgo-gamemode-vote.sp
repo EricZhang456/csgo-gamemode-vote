@@ -18,7 +18,7 @@
 #define SKIRMISH_PROPERTY_NAME "skirmish_id"
 #define GAME_MODE_FLAGS_PROPERTY_NAME "game_mode_flags"
 
-#define PLUGIN_VERSION "1.2.3"
+#define PLUGIN_VERSION "1.2.4"
 
 public Plugin myinfo = {
     name = "CSGO Game Mode Vote",
@@ -96,7 +96,7 @@ public void OnPluginStart() {
     cvarVotePercent = CreateConVar("sm_game_mode_vote_percent", "0.6", "How many players are required for the vote to pass?", _, true, 0.0, true, 1.0);
     cvarVoteAllowSameMode = CreateConVar("sm_game_mode_vote_allow_same_vote", "0", "Allow clients to vote for the same game mode.");
     cvarReloadOnMapLoad = CreateConVar("sm_game_mode_reload_on_map_load", "0", "Reload the config on every map load.");
-    cvarVoteAlternativeHint = CreateConVar("sm_game_mode_print_alt_hint", "0", "Prints an alternative hint message to clients that they can vote for a new map");
+    cvarVoteAlternativeHint = CreateConVar("sm_game_mode_print_alt_hint", "0", "Prints an alternative hint message to clients that they can vote for a new map.");
 
     cvarPluginVersion.AddChangeHook(OnVersionCvarChanged);
 
