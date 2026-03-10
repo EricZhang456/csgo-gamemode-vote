@@ -18,7 +18,7 @@
 #define SKIRMISH_PROPERTY_NAME "skirmish_id"
 #define GAME_MODE_FLAGS_PROPERTY_NAME "game_mode_flags"
 
-#define PLUGIN_VERSION "1.2.4"
+#define PLUGIN_VERSION "1.2.4.1"
 
 public Plugin myinfo = {
     name = "CSGO Game Mode Vote",
@@ -104,6 +104,7 @@ public void OnPluginStart() {
     cookieNoHintWhenEnter.SetPrefabMenu(CookieMenu_OnOff_Int, "Show game mode vote hint", OnHintCookieMenu);
 
     RegConsoleCmd("sm_votemode", Cmd_VoteMode, "Vote for the next game mode.");
+    RegConsoleCmd("sm_currentmode", Cmd_CurrentMode, "Get the current game mode.");
     RegAdminCmd("sm_changemode", Cmd_ChangeMode, ADMFLAG_CHANGEMAP, "Change the current game mode.");
     RegAdminCmd("sm_reload_gamemode_vote_config", Cmd_ReloadModeConfig, ADMFLAG_CONFIG, "Reload config for game mode vote.");
 
@@ -482,6 +483,22 @@ public Action Cmd_VoteMode(int client, int args) {
     }
 
     ShowModeSelectMenu(client);
+    return Plugin_Handled;
+}
+
+public Action Cmd_CurrentMode(int client, int args) {
+    if (!IsValidClient(client)) {
+        return Plugin_Handled;
+    }
+
+    JSON_Object currentMode = GetGameModeFromId(currentModeId);
+    if (currentMode == null) {
+        LogError("current game mode is null when requesting current game mode.");
+        return Plugin_Handled;
+    }
+    char modeTitle[BASE_STR_LEN];
+    currentMode.GetString(TITLE_PROPERTY_NAME, modeTitle, sizeof(modeTitle));
+    ReplyToCommand(client, "%t", "CSGO_GAMEMODE_CURRENT_MODE_REPLY", modeTitle);
     return Plugin_Handled;
 }
 

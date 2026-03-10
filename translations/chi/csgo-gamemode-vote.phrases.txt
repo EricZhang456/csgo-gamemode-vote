@@ -24,6 +24,10 @@
     {
         "chi"   "%s (当前地图)"
     }
+    "CSGO_GAMEMODE_CURRENT_MODE_REPLY"
+    {
+        "chi"   "当前模式: %s"
+    }
     "CSGO_GAMEMODE_MAP_MENU_TITLE"
     {
         "chi"   "选择地图"
