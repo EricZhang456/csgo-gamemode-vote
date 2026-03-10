@@ -18,11 +18,13 @@
 #define SKIRMISH_PROPERTY_NAME "skirmish_id"
 #define GAME_MODE_FLAGS_PROPERTY_NAME "game_mode_flags"
 
+#define PLUGIN_VERSION "1.2.3"
+
 public Plugin myinfo = {
     name = "CSGO Game Mode Vote",
     author = "Eric Zhang",
     description = "Vote for CSGO game mode.",
-    version = "1.2.3",
+    version = PLUGIN_VERSION,
     url = "https://ericaftereric.top"
 };
 
@@ -34,6 +36,7 @@ JSON_Array gameModes;
 
 Cookie cookieNoHintWhenEnter;
 
+ConVar cvarPluginVersion;
 ConVar cvarGameMode;
 ConVar cvarGameType;
 ConVar cvarGameModeFlags;
@@ -82,6 +85,7 @@ public void OnPluginStart() {
     cvarWarGameModeNumModes.AddChangeHook(OnVoteModeCvarChanged);
     cvarWarGameModes.AddChangeHook(OnVoteModeCvarChanged);
 
+    cvarPluginVersion = CreateConVar("sm_game_mode_vote_version", PLUGIN_VERSION, "Version of the CSGO game mode vote plugin.", FCVAR_DONTRECORD | FCVAR_NOTIFY);
     cvarConfigPath = CreateConVar("sm_game_mode_vote_config_path", "configs/gamemode-vote.json", "Path to the config file relative to the SourceMod root directory");
     cvarStartupMode = CreateConVar("sm_game_mode_startup_mode", "", "Game mode server should start at.");
     cvarShowHintByDefault = CreateConVar("sm_game_mode_vote_show_hint_default", "1", "Tell clients they can vote for game mode by default.");
@@ -91,6 +95,8 @@ public void OnPluginStart() {
     cvarVotePercent = CreateConVar("sm_game_mode_vote_percent", "0.6", "How many players are required for the vote to pass?", _, true, 0.0, true, 1.0);
     cvarVoteAllowSameMode = CreateConVar("sm_game_mode_vote_allow_same_vote", "0", "Allow clients to vote for the same game mode");
     cvarReloadOnMapLoad = CreateConVar("sm_game_mode_reload_on_map_load", "0", "Reload the config on every map load.");
+
+    cvarPluginVersion.AddChangeHook(OnVersionCvarChanged);
 
     cookieNoHintWhenEnter = new Cookie("Show game mode vote hint", "Toggle the game mode vote hint when you enter the server.", CookieAccess_Public);
     cookieNoHintWhenEnter.SetPrefabMenu(CookieMenu_OnOff_Int, "Show game mode vote hint", OnHintCookieMenu);
@@ -156,6 +162,10 @@ public void OnVoteModeCvarChanged(ConVar convar, const char[] oldValue, const ch
     convar.GetName(name, sizeof(name));
     LogMessage("Resetting %s to 0 to avoid conflicts with the game mode vote plugin...", name);
     convar.SetString("0");
+}
+
+public void OnVersionCvarChanged(ConVar convar, const char[] oldValue, const char[] newValue) {
+    convar.SetString(PLUGIN_VERSION);
 }
 
 public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast) {
