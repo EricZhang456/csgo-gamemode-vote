@@ -4,7 +4,7 @@
 #include <clientprefs>
 #include <json>
 
-// 5 mb of stack/heap
+// 5 mb of stack/heap so we don't run out of heap when parsing the config
 #pragma dynamic 1310720
 
 #define BASE_STR_LEN 256
@@ -93,7 +93,7 @@ public void OnPluginStart() {
     cvarVoteCooldown = CreateConVar("sm_game_mode_vote_cooldown", "300", "Minimum time before another game mode vote can occur (in seconds).", _, true, 0.0);
     cvarVoteTimer = CreateConVar("sm_game_mode_vote_timer", "5.0", "How long should the plugin wait before the game mode is applied when a vote is successful?", _, true, 0.0);
     cvarVotePercent = CreateConVar("sm_game_mode_vote_percent", "0.6", "How many players are required for the vote to pass?", _, true, 0.0, true, 1.0);
-    cvarVoteAllowSameMode = CreateConVar("sm_game_mode_vote_allow_same_vote", "0", "Allow clients to vote for the same game mode");
+    cvarVoteAllowSameMode = CreateConVar("sm_game_mode_vote_allow_same_vote", "0", "Allow clients to vote for the same game mode.");
     cvarReloadOnMapLoad = CreateConVar("sm_game_mode_reload_on_map_load", "0", "Reload the config on every map load.");
 
     cvarPluginVersion.AddChangeHook(OnVersionCvarChanged);
@@ -102,6 +102,7 @@ public void OnPluginStart() {
     cookieNoHintWhenEnter.SetPrefabMenu(CookieMenu_OnOff_Int, "Show game mode vote hint", OnHintCookieMenu);
 
     RegConsoleCmd("sm_votemode", Cmd_VoteMode, "Vote for the next game mode.");
+    RegAdminCmd("sm_changemode", Cmd_ChangeMode, ADMFLAG_CHANGEMAP, "Change the current game mode.");
     RegAdminCmd("sm_reload_gamemode_vote_config", Cmd_ReloadModeConfig, ADMFLAG_CONFIG, "Reload config for game mode vote.");
 
     HookEvent("player_spawn", Event_PlayerSpawn);
@@ -170,7 +171,7 @@ public void OnVersionCvarChanged(ConVar convar, const char[] oldValue, const cha
 
 public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast) {
     int client = GetClientOfUserId(event.GetInt("userid"));
-    if (IsFakeClient(client) || IsClientSourceTV(client) || IsClientReplay(client)) {
+    if (!IsValidClient(client)) {
         return;
     }
     if (cookieNoHintWhenEnter.GetInt(client, cvarShowHintByDefault.BoolValue ? 1 : 0)) {
@@ -268,6 +269,10 @@ bool ValidateGameModeEntry(JSON_Object obj, JSON_Array allModes, char[] error, i
     char objId[BASE_STR_LEN], objTitle[BASE_STR_LEN];
     obj.GetString(ID_PROPERTY_NAME, objId, sizeof(objId));
     obj.GetString(TITLE_PROPERTY_NAME, objTitle, sizeof(objTitle));
+    if (StrEqual(objId, "_admin")) {
+        strcopy(error, errorLen, "id cannot be called _admin as it is reserved");
+        return false;
+    }
     if (StrContains(objId, ";") != -1) {
         strcopy(error, errorLen, "id cannot contain semicolons");
         return false;
@@ -276,7 +281,7 @@ bool ValidateGameModeEntry(JSON_Object obj, JSON_Array allModes, char[] error, i
         strcopy(error, errorLen, "title cannot contain semicolons");
         return false;
     }
-    JSON_Array maplist = view_as<JSON_Array>(obj.GetObject(MAPLIST_PROPERTY_NAME))
+    JSON_Array maplist = view_as<JSON_Array>(obj.GetObject(MAPLIST_PROPERTY_NAME));
     if (maplist == null || maplist.Length == 0) {
         strcopy(error, errorLen, "maplist is empty");
         return false;
@@ -389,11 +394,14 @@ public Action Timer_OnVoteCooldownTimerEnd(Handle timer) {
     return Plugin_Continue;
 }
 
-void ShowModeSelectMenu(int client) {
+void ShowModeSelectMenu(int client, bool admin = false) {
     char menuTitle[BASE_STR_LEN];
     Format(menuTitle, sizeof(menuTitle), "%T", "CSGO_GAMEMODE_MENU_TITLE", client);
     Menu gameModeSelectMenu = new Menu(Menu_ModeSelectMenuHandler);
     gameModeSelectMenu.SetTitle(menuTitle);
+    if (admin) {
+        gameModeSelectMenu.AddItem("_admin", "true", ITEMDRAW_IGNORE);
+    }
     for (int i = 0; i < gameModes.Length; i++) {
         char id[BASE_STR_LEN], titlePre[BASE_STR_LEN], title[BASE_STR_LEN];
         int style = ITEMDRAW_DEFAULT;
@@ -411,11 +419,14 @@ void ShowModeSelectMenu(int client) {
     gameModeSelectMenu.Display(client, MENU_TIME_FOREVER);
 }
 
-void ShowMapSelectMenu(int client, JSON_Object mode) {
+void ShowMapSelectMenu(int client, JSON_Object mode, bool admin = false) {
     char currentMap[BASE_STR_LEN], menuTitle[BASE_STR_LEN], modeId[BASE_STR_LEN];
     JSON_Array maplist = view_as<JSON_Array>(mode.GetObject(MAPLIST_PROPERTY_NAME));
     mode.GetString(ID_PROPERTY_NAME, modeId, sizeof(modeId));
     Menu mapSelectMenu = new Menu(Menu_MapSelectMenuHandler, MENU_ACTIONS_DEFAULT | MenuAction_Display);
+    if (admin) {
+        mapSelectMenu.AddItem("_admin", "true", ITEMDRAW_IGNORE);
+    }
     Format(menuTitle, sizeof(menuTitle), "%T", "CSGO_GAMEMODE_MAP_MENU_TITLE", client);
     mapSelectMenu.SetTitle(menuTitle);
     GetCurrentMap(currentMap, sizeof(currentMap));
@@ -435,6 +446,10 @@ void ShowMapSelectMenu(int client, JSON_Object mode) {
 }
 
 bool CheckCanStartVote(int client) {
+    if (!IsValidClient(client)) {
+        return false;
+    }
+
     if (!cvarVoteAllowSpec.BoolValue && GetClientTeam(client) == CS_TEAM_SPECTATOR) {
         PrintToChat(client, "%t", "CSGO_GAMEMODE_VOTE_SPEC");
         return false;
@@ -468,6 +483,15 @@ public Action Cmd_VoteMode(int client, int args) {
     return Plugin_Handled;
 }
 
+public Action Cmd_ChangeMode(int client, int args) {
+    if (!IsValidClient(client)) {
+        return Plugin_Handled;
+    }
+
+    ShowModeSelectMenu(client, true);    
+    return Plugin_Handled;
+}
+
 public void Menu_ModeSelectMenuHandler(Menu menu, MenuAction action, int param1, int param2) {
     switch (action) {
         case MenuAction_Select: {
@@ -477,7 +501,13 @@ public void Menu_ModeSelectMenuHandler(Menu menu, MenuAction action, int param1,
             if (selectedMode == null) {
                 SetFailState("Selected game mode is null, something has gone horribly wrong.");
             }
-            ShowMapSelectMenu(param1, selectedMode);
+            bool admin = false;
+            char adminStr[BASE_STR_LEN];
+            menu.GetItem(0, adminStr, sizeof(adminStr));
+            if (StrEqual(adminStr, "_admin")) {
+                admin = true;
+            }
+            ShowMapSelectMenu(param1, selectedMode, admin);
         }
         case MenuAction_End: {
             delete menu;
@@ -491,11 +521,17 @@ public int Menu_MapSelectMenuHandler(Menu menu, MenuAction action, int param1, i
             char id[BASE_STR_LEN], map[BASE_STR_LEN], item[BASE_STR_LEN];
             menu.GetItem(param2, item, sizeof(item));
             SplitStringAtSemicolon(item, id, sizeof(id), map, sizeof(map));
-            JSON_Object selectedMode = GetGameModeFromId(id);
-            if (selectedMode == null) {
-                SetFailState("Selected game mode is null, something has gone horribly wrong.");
+            char admin[BASE_STR_LEN];
+            menu.GetItem(0, admin, sizeof(admin));
+            if (StrEqual(admin, "_admin")) {
+                ScheduleGameModeApply(id, map);
+            } else {
+                JSON_Object selectedMode = GetGameModeFromId(id);
+                if (selectedMode == null) {
+                    SetFailState("Selected game mode is null, something has gone horribly wrong.");
+                }
+                StartGameModeVote(selectedMode, map, param1);
             }
-            StartGameModeVote(selectedMode, map, param1);
         }
         case MenuAction_Cancel: {
             if (param2 == MenuCancel_ExitBack) {
@@ -560,7 +596,6 @@ public int Menu_GameModeVoteHandler(Menu menu, MenuAction action, int param1, in
                 menu.GetItem(1, map, sizeof(map));
                 menu.GetItem(2, modeId, sizeof(modeId));
                 PrintToChatAll("[SM] %t", "Vote Successful", RoundToNearest(100.0 * percent), totalVotes);
-                PrintToChatAll("[SM] %t", "CSGO_GAMEMODE_VOTE_SUCCESS", modeTitle, map);
                 ScheduleGameModeApply(modeId, map);
             } else {
                 PrintToChatAll("[SM] %t", "Vote Failed", RoundToNearest(100.0 * limit),
@@ -580,6 +615,10 @@ public Action Cmd_ReloadModeConfig(int client, int args) {
 }
 
 void ScheduleGameModeApply(const char[] id, const char[] map) {
+    JSON_Object mode = GetGameModeFromId(id);
+    char modeTitle[BASE_STR_LEN];
+    mode.GetString(TITLE_PROPERTY_NAME, modeTitle, sizeof(modeTitle));
+    PrintToChatAll("[SM] %t", "CSGO_GAMEMODE_VOTE_SUCCESS", modeTitle, map);
     DataPack pack;
     CreateDataTimer(cvarVoteTimer.FloatValue, Timer_ScheduleTimerHandler, pack);
     pack.WriteString(id);
@@ -604,4 +643,8 @@ void SplitStringAtSemicolon(const char[] source, char[] first, int firstLen, cha
     ExplodeString(source, ";", strings, 2, BASE_STR_LEN);
     strcopy(first, firstLen, strings[0]);
     strcopy(second, secondLen, strings[1]);    
+}
+
+bool IsValidClient(int client) {
+    return !(IsFakeClient(client) || IsClientSourceTV(client) || IsClientReplay(client));
 }

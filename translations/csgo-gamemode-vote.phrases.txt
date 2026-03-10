@@ -4,6 +4,10 @@
     {
         "en"    "Type !votemode to vote for a new game mode."
     }
+    "CSGO_GAMEMODE_VOTE_HINT_MAP"
+    {
+        "en"    "Type !votemode to vote for a new game mode or a new map."
+    }
     "CSGO_GAMEMODE_VOTE_HINT_TOGGLE"
     {
         "en"    "Show game mode vote hint"

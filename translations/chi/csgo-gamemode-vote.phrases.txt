@@ -4,6 +4,10 @@
     {
         "chi"   "输入 !votemode 来发起模式投票"
     }
+    "CSGO_GAMEMODE_VOTE_HINT_MAP"
+    {
+        "chi"   "输入 !votemode 来发起模式或地图投票"
+    }
     "CSGO_GAMEMODE_VOTE_HINT_TOGGLE"
     {
         "chi"   "显示模式投票提示"
