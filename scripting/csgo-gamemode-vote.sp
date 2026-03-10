@@ -49,6 +49,7 @@ ConVar cvarVoteCooldown;
 ConVar cvarVoteTimer;
 ConVar cvarVoteDuration;
 ConVar cvarVotePercent;
+ConVar cvarVoteAllowSameMode;
 ConVar cvarReloadOnMapLoad;
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
@@ -88,6 +89,7 @@ public void OnPluginStart() {
     cvarVoteCooldown = CreateConVar("sm_game_mode_vote_cooldown", "300", "Minimum time before another game mode vote can occur (in seconds).", _, true, 0.0);
     cvarVoteTimer = CreateConVar("sm_game_mode_vote_timer", "5.0", "How long should the plugin wait before the game mode is applied when a vote is successful?", _, true, 0.0);
     cvarVotePercent = CreateConVar("sm_game_mode_vote_percent", "0.6", "How many players are required for the vote to pass?", _, true, 0.0, true, 1.0);
+    cvarVoteAllowSameMode = CreateConVar("sm_game_mode_vote_allow_same_vote", "0", "Allow clients to vote for the same game mode");
     cvarReloadOnMapLoad = CreateConVar("sm_game_mode_reload_on_map_load", "0", "Reload the config on every map load.");
 
     cookieNoHintWhenEnter = new Cookie("Show game mode vote hint", "Toggle the game mode vote hint when you enter the server.", CookieAccess_Public);
@@ -388,7 +390,7 @@ void ShowModeSelectMenu(int client) {
         JSON_Object obj = gameModes.GetObject(i);
         obj.GetString(ID_PROPERTY_NAME, id, sizeof(id));
         obj.GetString(TITLE_PROPERTY_NAME, titlePre, sizeof(titlePre));
-        if (StrEqual(id, currentModeId)) {
+        if (StrEqual(id, currentModeId) && !cvarVoteAllowSameMode.BoolValue) {
             Format(title, sizeof(title), "%T", "CSGO_GAMEMODE_MENU_SELECTED", client, titlePre);
             style = ITEMDRAW_DISABLED;
         } else {
@@ -411,6 +413,10 @@ void ShowMapSelectMenu(int client, JSON_Object mode) {
         char map[BASE_STR_LEN], itemId[BASE_STR_LEN];
         maplist.GetString(i, map, sizeof(map));
         int style = ITEMDRAW_DEFAULT;
+        if (StrEqual(modeId, currentModeId) && StrEqual(map, currentMap)) {
+            style = ITEMDRAW_DISABLED;
+            Format(map, sizeof(map), "%T", "CSGO_GAMEMODE_MENU_CURRENT_MAP", client, map);
+        }
         Format(itemId, sizeof(itemId), "%s;%s", modeId, map);
         mapSelectMenu.AddItem(itemId, map, style);
     }

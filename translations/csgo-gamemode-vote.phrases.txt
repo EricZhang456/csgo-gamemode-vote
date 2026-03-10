@@ -16,6 +16,10 @@
     {
         "en"    "%s (Current Mode)"
     }
+    "CSGO_GAMEMODE_MENU_CURRENT_MAP"
+    {
+        "en"    "%s (Current Map)"
+    }
     "CSGO_GAMEMODE_MAP_MENU_TITLE"
     {
         "en"    "Select a map"
