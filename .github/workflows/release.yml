@@ -23,6 +23,13 @@ jobs:
         with:
           path: artifacts
 
+      - name: Create zip files for release
+        run: |
+          cd artifacts
+          for dir in */; do
+            zip -r "${dir%/}.zip" "$dir"
+          done
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
