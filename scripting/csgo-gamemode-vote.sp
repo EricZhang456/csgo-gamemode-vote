@@ -18,7 +18,7 @@
 #define SKIRMISH_PROPERTY_NAME "skirmish_id"
 #define GAME_MODE_FLAGS_PROPERTY_NAME "game_mode_flags"
 
-#define PLUGIN_VERSION "1.2.4.1"
+#define PLUGIN_VERSION "1.2.4.2"
 
 public Plugin myinfo = {
     name = "CSGO Game Mode Vote",
@@ -554,7 +554,9 @@ public int Menu_MapSelectMenuHandler(Menu menu, MenuAction action, int param1, i
         }
         case MenuAction_Cancel: {
             if (param2 == MenuCancel_ExitBack) {
-                ShowModeSelectMenu(param1);
+                char admin[BASE_STR_LEN];
+                menu.GetItem(0, admin, sizeof(admin));
+                ShowModeSelectMenu(param1, StrEqual(admin, "_admin"));
             }
         }
         case MenuAction_End: {
