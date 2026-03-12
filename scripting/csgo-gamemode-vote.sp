@@ -18,7 +18,7 @@
 #define SKIRMISH_PROPERTY_NAME "skirmish_id"
 #define GAME_MODE_FLAGS_PROPERTY_NAME "game_mode_flags"
 
-#define PLUGIN_VERSION "1.2.4.2"
+#define PLUGIN_VERSION "1.2.4.3"
 
 public Plugin myinfo = {
     name = "CSGO Game Mode Vote",
