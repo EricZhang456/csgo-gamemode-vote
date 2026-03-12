@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup SourceMod
         run: |
@@ -46,7 +46,7 @@ jobs:
           mv configs/* artifact/configs
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           path: artifact
           name: package-${{ matrix.sm-target }}
