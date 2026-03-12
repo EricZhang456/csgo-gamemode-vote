@@ -27,7 +27,9 @@ jobs:
         run: |
           cd artifacts
           for dir in */; do
-            zip -jr "${dir%/}.zip" "$dir"
+            cd "$dir"
+            zip -r "../${dir%/}.zip" .
+            cd ..
           done
 
       - name: Create Release
