@@ -434,7 +434,7 @@ void ShowMapSelectMenu(int client, JSON_Object mode, bool admin = false) {
     mapSelectMenu.SetTitle(menuTitle);
     GetCurrentMap(currentMap, sizeof(currentMap));
     for (int i = 0; i < maplist.Length; i++) {
-        char map[BASE_STR_LEN], itemId[BASE_STR_LEN];
+        char map[BASE_STR_LEN], itemId[BASE_STR_LEN], mapDisplay[BASE_STR_LEN];
         maplist.GetString(i, map, sizeof(map));
         int style = ITEMDRAW_DEFAULT;
         if (StrEqual(modeId, currentModeId) && StrEqual(map, currentMap)) {
@@ -442,7 +442,8 @@ void ShowMapSelectMenu(int client, JSON_Object mode, bool admin = false) {
             Format(map, sizeof(map), "%T", "CSGO_GAMEMODE_MENU_CURRENT_MAP", client, map);
         }
         Format(itemId, sizeof(itemId), "%s;%s", modeId, map);
-        mapSelectMenu.AddItem(itemId, map, style);
+        GetMapDisplayName(map, mapDisplay, sizeof(mapDisplay));
+        mapSelectMenu.AddItem(itemId, mapDisplay, style);
     }
     mapSelectMenu.ExitBackButton = true;
     mapSelectMenu.Display(client, MENU_TIME_FOREVER);
@@ -593,9 +594,15 @@ public int Menu_GameModeVoteHandler(Menu menu, MenuAction action, int param1, in
                 Format(targetStr, sizeof(targetStr), "%T", display, param1);
                 return RedrawMenuItem(targetStr);
             }
-            if (StrEqual(display, "CSGO_GAMEMODE_VOTE_MODE") || StrEqual(display, "CSGO_GAMEMODE_VOTE_MAP")) {
+            if (StrEqual(display, "CSGO_GAMEMODE_VOTE_MODE")) {
                 char targetStr[BASE_STR_LEN];
                 Format(targetStr, sizeof(targetStr), "%T", display, param1, info);
+                return RedrawMenuItem(targetStr);
+            }
+            if (StrEqual(display, "CSGO_GAMEMODE_VOTE_MAP")) {
+                char targetStr[BASE_STR_LEN], mapDisplay[BASE_STR_LEN];
+                GetMapDisplayName(info, mapDisplay, sizeof(mapDisplay));
+                Format(targetStr, sizeof(targetStr), "%T", display, param1, mapDisplay);
                 return RedrawMenuItem(targetStr);
             }
         }
@@ -637,9 +644,10 @@ public Action Cmd_ReloadModeConfig(int client, int args) {
 
 void ScheduleGameModeApply(const char[] id, const char[] map) {
     JSON_Object mode = GetGameModeFromId(id);
-    char modeTitle[BASE_STR_LEN];
+    char modeTitle[BASE_STR_LEN], mapDisplay[BASE_STR_LEN];
     mode.GetString(TITLE_PROPERTY_NAME, modeTitle, sizeof(modeTitle));
-    PrintToChatAll("[SM] %t", "CSGO_GAMEMODE_VOTE_SUCCESS", modeTitle, map);
+    GetMapDisplayName(map, mapDisplay, sizeof(mapDisplay));
+    PrintToChatAll("[SM] %t", "CSGO_GAMEMODE_VOTE_SUCCESS", modeTitle, mapDisplay);
     DataPack pack;
     CreateDataTimer(cvarVoteTimer.FloatValue, Timer_ScheduleTimerHandler, pack);
     pack.WriteString(id);
